@@ -9,6 +9,8 @@
 #define ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_
 
 
+
+#include "stdbool.h"
 #include <stdint.h>
 #include "board.h"
 #include "stdio.h"
@@ -66,6 +68,9 @@
 #define STACK_FRAME_SIZE			8
 #define FULL_STACKING_SIZE 			17	                         //16 core registers + valor previo de LR
 
+#define FALSE   			        0
+#define TRUE		   		        1
+
 #define INIT_TASK 			        0
 #define MAX_LOG  			        100	                         //Maximo numero de cambios de conextos registrables
 #define MAX_TAG_LENGTH		        50	                         //Maximo numero de caracteres del tag de la tarea
@@ -76,6 +81,7 @@
 #define DEFAULT_TAG		            "TASK #"                     //En caso de que no se defina un tag a la tarea
 #define ERROR_STACK		            "STACK MEMORY UNDETERMINED"  //Si no es posible adquirir la memoria disponible
 #define FREE_STACK_MSG	            "THE MEMORY AVAILABLE IS: "
+#define MAX_TASK_MSG	            "MAX NUMBER OF TASKS REACHED"
 
 
 
@@ -99,6 +105,14 @@ typedef enum{
     SUSPENDED = 3
 } TASK_STATE;
 
+typedef enum{
+    INIT = 1,
+    WORKING = 0,
+    CHECKING = 2,
+	ERROR_H = 3
+} OS_STATE;
+
+
 struct Tasks {
 	uint32_t stack_pointer;
 	uint32_t stack[STACK_SIZE/4];
@@ -113,18 +127,22 @@ struct Tasks {
 
 struct DAMF_OS {
 	uint8_t running_task;
-	uint8_t ready_tasks[MAX_TASKS];
-	uint8_t blocked_tasks[MAX_TASKS];
+	uint8_t next_task;
 	uint8_t tasks_log[MAX_LOG];
 	struct Tasks OS_Tasks[MAX_TASKS];
 	uint8_t task_counter;
+	char error_tag[MAX_TAG_LENGTH];
+	OS_STATE state;
 };
 
 /*==================[definicion de prototipos]=================================*/
 
 void os_Include_Task(void *tarea, const char * tag);
 
-void os_InitTarea(void *tarea, uint32_t *stack, uint32_t *stack_pointer);
 void os_Init(void);
+
+void os_yield(void);
+
+void os_block(void);
 
 #endif /* ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_ */
