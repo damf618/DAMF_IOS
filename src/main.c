@@ -1,15 +1,13 @@
 /*==================[inclusions]=============================================*/
 
 #include "main.h"
-
-#include "../inc/DAMF_OS_Core.h"
 #include "board.h"
-
-
+#include "../inc/DAMF_OS_Core.h"
 
 /*==================[macros and definitions]=================================*/
 
 #define MILISEC		1000
+
 
 /*==================[Global data declaration]==============================*/
 
@@ -63,11 +61,14 @@ int main(void)  {
 	os_Include_Task(&tarea2,"Tarea 2");
 	os_Include_Task(&tarea2,"Tarea 3");
 
-	while (1)
+	os_Run();
+
+	while(1)
 	{
 		__WFI();
-		//os_print_error();
 	}
+
+	//os_print_error();
 }
 
 /** @} doxygen end group definition */

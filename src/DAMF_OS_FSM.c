@@ -21,6 +21,7 @@
 void os_fsm_Init()
 {
 	DAMF.state = WORKING;
+	//DEBE SER DIFERENTE DE LA INICIAL PARA QUE EL SCHEDULER FUNCIONE CORRECTAMENTE
 	DAMF.next_task = INIT_TASK;
 }
 
@@ -39,36 +40,16 @@ bool os_fsm_Running(void)
 			break;
 		}
 	}
-/*
-	static int32_t tarea_actual = -1;
-	static uint8_t search_index = 0;
-	uint32_t sp_siguiente;
-
-	if((0<=tarea_actual)&&(tarea_actual<=DAMF.task_counter)){
-
-		DAMF.OS_Tasks[tarea_actual].stack_pointer = sp_actual;           //Guardar el MSP actual para la tarea en marcha
-
-		for(int8_t index=0;index<DAMF.task_counter;index++){           //Scheduler con Starvation
-		//for(int8_t index=search_index;index<DAMF.task_counter;index++){  //Scheduler V2
-			if(DAMF.OS_Tasks[index].state == READY)
-			{
-				DAMF.OS_Tasks[tarea_actual].state = READY;
-				tarea_actual = index;
-				break;
-			}
+	//IDLE Task activa, no hay tareas en estado READY
+	if(!aux)
+	{
+		if(DAMF.running_task!=IDLE_TASK_INDEX)
+		{
+			DAMF.next_task = IDLE_TASK_INDEX;
+			aux = TRUE;
 		}
-		sp_siguiente = DAMF.OS_Tasks[tarea_actual].stack_pointer;        //Asignacion de nuevo stackpointer
-		DAMF.OS_Tasks[tarea_actual].state = RUNNING;
-		DAMF.running_task = DAMF.OS_Tasks[tarea_actual].id;
-	}
-	else {
-		sp_siguiente = DAMF.OS_Tasks[INIT_TASK].stack_pointer;           //En caso inicial entra aqui y comienza con la primera tarea
-		DAMF.OS_Tasks[INIT_TASK].state = RUNNING;
-		tarea_actual = INIT_TASK;
 	}
 
-	return sp_siguiente;
-	*/
 	return aux;
 }
 

@@ -10,10 +10,11 @@
  *      Author: gonza
  */
 
-#include "DAMF_OS_FSM.h"
+
 #include "stdio.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include "DAMF_OS_FSM.h"
 
 struct DAMF_OS DAMF;
 
@@ -23,7 +24,127 @@ static void os_InitTarea(void *tarea, uint32_t *stack, uint32_t *stack_pointer);
 static bool scheduler(void);
 static void os_set_Error(char* Error_msg);
 
+#ifdef EDUCIAA
+	static void os_Heartbeat_tick(void);
+#endif
 /*=============================================================================*/
+
+
+
+/*==================[definicion de hooks debiles]=================================*/
+
+/*
+ * Esta seccion contiene los hooks de sistema, los cuales el usuario del OS puede
+ * redefinir dentro de su codigo y poblarlos segun necesidad
+ */
+
+
+/*************************************************************************************************
+	 *  @brief Hook de retorno de tareas
+     *
+     *  @details
+     *   Esta funcion no deberia accederse bajo ningun concepto, porque ninguna tarea del OS
+     *   debe retornar. Si lo hace, es un comportamiento anormal y debe ser tratado.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
+void __attribute__((weak)) returnHook(void)  {
+	while(1);
+}
+
+
+
+/*************************************************************************************************
+	 *  @brief Hook de tick de sistema
+     *
+     *  @details
+     *   Se ejecuta cada vez que se produce un tick de sistema. Es llamada desde el handler de
+     *   SysTick.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+	 *
+	 *  @warning	Esta funcion debe ser lo mas corta posible porque se ejecuta dentro del handler
+     *   			mencionado, por lo que tiene prioridad sobre el cambio de contexto y otras IRQ.
+	 *
+	 *  @warning 	Esta funcion no debe bajo ninguna circunstancia utilizar APIs del OS dado
+	 *  			que podria dar lugar a un nuevo scheduling.
+***************************************************************************************************/
+void __attribute__((weak)) tickHook(void)  {
+	__asm volatile( "nop" );
+}
+
+
+
+/*************************************************************************************************
+	 *  @brief Hook de error de sistema
+     *
+     *  @details
+     *   Esta funcion es llamada en caso de error del sistema, y puede ser utilizada a fin de hacer
+     *   debug. El puntero de la funcion que llama a errorHook es pasado como parametro para tener
+     *   informacion de quien la esta llamando, y dentro de ella puede verse el codigo de error
+     *   en la estructura de control de sistema. Si ha de implementarse por el usuario para manejo
+     *   de errores, es importante tener en cuenta que la estructura de control solo esta disponible
+     *   dentro de este archivo.
+     *
+	 *  @param caller		Puntero a la funcion donde fue llamado errorHook. Implementado solo a
+	 *  					fines de trazabilidad de errores
+	 *
+	 *  @return none.
+***************************************************************************************************/
+void __attribute__((weak)) errorHook(void *caller)  {
+	/*
+	 * Revisar el contenido de control_OS.error para obtener informacion. Utilizar os_getError()
+	 */
+	while(1);
+}
+
+
+
+#ifdef EDUCIAA
+	static void os_Heartbeat_tick(void)
+	{
+		DAMF.os_tick_counter --;
+		if(DAMF.os_tick_counter<=0)
+		{
+			DAMF.os_tick_led = TRUE;
+		}
+	}
+#endif
+
+
+
+/*
+ *
+ *
+ * */
+void __attribute__((weak)) Idle_Task(void)  {
+
+#ifdef EDUCIAA
+	#include "board.h"
+	#define LED 0
+	while(1)
+	{
+		if(DAMF.os_tick_led)
+		{
+			DAMF.os_tick_led = FALSE;
+			DAMF.os_tick_counter = HEARTBEAT_TIMING;
+			Board_LED_Toggle(LED);
+		}
+		//NO esta bloqueando y se va al retorno
+		__WFI();
+	}
+#else
+	__WFI();
+#endif
+}
+
+
+
+
 
 /*************************************************************************************************
 	 *  @brief Ceder CPU de Tareas el DAMF_OS.
@@ -56,7 +177,8 @@ void os_Include_Task(void *tarea, const char * tag) {
 		DAMF.OS_Tasks[DAMF.task_counter].id = DAMF.task_counter;
 		memset(DAMF.OS_Tasks[DAMF.task_counter].tag,0,MAX_TAG_LENGTH);
 		memcpy(DAMF.OS_Tasks[DAMF.task_counter].tag,tag,strlen(tag)+1);
-		os_InitTarea(DAMF.OS_Tasks[DAMF.task_counter].function,&DAMF.OS_Tasks[DAMF.task_counter].stack, &DAMF.OS_Tasks[DAMF.task_counter].stack_pointer);
+		//CHECK TODO
+		os_InitTarea((void*)DAMF.OS_Tasks[DAMF.task_counter].function,DAMF.OS_Tasks[DAMF.task_counter].stack, &DAMF.OS_Tasks[DAMF.task_counter].stack_pointer);
 		DAMF.task_counter ++;
 	}
 	else
@@ -78,7 +200,23 @@ void os_Include_Task(void *tarea, const char * tag) {
 static void os_set_Error(char* Error_msg)
 {
 	memcpy(DAMF.error_tag,Error_msg,strlen(Error_msg)+1);
+	errorHook(os_InitTarea);
 }
+
+
+/*************************************************************************************************
+	 *  @brief Retorno de mensaje de error.
+     *
+     *  @details
+     *  Permite obtener el último el error cargado por el OS.
+     *
+	 *  @return  Error_msg   Mensaje que describe el error detectado.
+***************************************************************************************************/
+char* os_getError(void)
+{
+	return DAMF.error_tag;
+}
+
 
 
 /*************************************************************************************************
@@ -105,6 +243,8 @@ static void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_poi
 
 	stack_tarea[STACK_SIZE/4 - XPSR] = INIT_XPSR;				//necesario para bit thumb
 	stack_tarea[STACK_SIZE/4 - PC_REG] = (uint32_t)tarea;		//direccion de la tarea (ENTRY_POINT)
+
+	stack_tarea[STACK_SIZE/4 - LR] = (uint32_t)returnHook;
 
 
 	/**
@@ -145,10 +285,51 @@ void os_Init(void)  {
 	NVIC_SetPriority(PendSV_IRQn, (1 << __NVIC_PRIO_BITS)-1); // No existe esta  prioridad existe la anterior 0->a este numero -1
 	DAMF.task_counter = RESET_TASK;
 	memset(DAMF.error_tag,0,MAX_TAG_LENGTH);
-	DAMF.running_task = INIT_TASK;
+	DAMF.running_task = IDLE_TASK_INDEX;
 	DAMF.next_task = INIT_TASK;
 	DAMF.state = INIT;
 }
+
+
+void os_Include_Idle_Task() {
+	//struct Tasks tempTask;
+
+	if(DAMF.task_counter <= MAX_TASKS)
+	{
+		DAMF.OS_Tasks[IDLE_TASK_INDEX].function = (uint32_t) &Idle_Task;
+		DAMF.OS_Tasks[IDLE_TASK_INDEX].state = READY;
+		DAMF.OS_Tasks[IDLE_TASK_INDEX].id = IDLE_TASK_INDEX;
+		memset(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,0,MAX_TAG_LENGTH);
+		memcpy(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,IDLE_TASK_TAG,strlen(IDLE_TASK_TAG)+1);
+		//CHECK TODO
+		os_InitTarea((void*)DAMF.OS_Tasks[IDLE_TASK_INDEX].function,DAMF.OS_Tasks[IDLE_TASK_INDEX].stack, &DAMF.OS_Tasks[IDLE_TASK_INDEX].stack_pointer);
+	}
+	else
+	{
+		os_set_Error(MAX_TASK_MSG);
+	}
+}
+
+
+
+/*************************************************************************************************
+	 *  @brief Arranque del OS.
+     *
+     *  @details
+     *  Debe ser llamada luego del OS_Init y posterior a la creación de todas las tareas generadas por el ussuario.
+     *  Crea la Tarea IDLE para gestionar las tareas y funciones del OS a partir de la ùltima tarea creada.
+     *
+	 *  @param 		None.
+	 *  @return     None.
+***************************************************************************************************/
+void os_Run(void)
+{
+	os_Include_Idle_Task();
+}
+
+
+
+
 
 
 /*************************************************************************************************
@@ -207,7 +388,20 @@ static bool scheduler()  {
 ***************************************************************************************************/
 void SysTick_Handler(void)  {
 
+	#ifdef EDUCIAA
+		//Actualización para IDLE Task
+		os_Heartbeat_tick();
+	#endif
+
 	bool sche =scheduler();
+
+	/*
+		 * Luego de determinar cual es la tarea siguiente segun el scheduler, se ejecuta la funcion
+		 * tickhook.
+	 */
+
+	tickHook();
+
 	if (sche)
 	{
 
