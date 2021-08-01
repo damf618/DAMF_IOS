@@ -328,7 +328,50 @@ void os_Run(void)
 }
 
 
+void sched_fix(uint8_t* order_tasks)
+{
+	int8_t  tasks_prio [MAX_TASKS];
+	uint8_t tasks_fix [MAX_TASKS];
+	uint8_t max = 0;
+	uint8_t max_index = 0;
+	uint8_t actual_index = DAMF.task_counter;
+	uint8_t counter = 0;
 
+	//create a vector of the tasks priorities
+	for(uint8_t i=0;i<MAX_TASKS;i++)
+	{
+		if(i<actual_index)
+		{
+			tasks_prio[i]=DAMF.OS_Tasks[i].prior;
+		}
+		else
+		{
+			tasks_prio[i]=-1;
+		}
+	}
+
+
+	while(actual_index>0)
+	{
+		//Search for the index of the greater priority value
+		for(uint8_t i=0;i<actual_index;i++)
+		{
+			if(max<=tasks_prio[i])
+			{
+				max = tasks_prio[i];
+				max_index = i;
+			}
+		}
+		//Reset the search and delete the actual max value
+		max= 0;
+		tasks_prio[max_index] = -1;
+		//save the actual max index
+		tasks_fix[counter] = max_index;
+		counter++;
+	}
+	memcpy(order_tasks,tasks_fix,sizeof(tasks_fix));
+
+}
 
 
 

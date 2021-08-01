@@ -126,6 +126,7 @@ struct Tasks {
 	uint32_t time_count;
 	uint32_t function;
 	uint8_t id;
+	uint8_t prior;
 	char tag[MAX_TAG_LENGTH];
 	uint8_t free_stack;
 	TASK_STATE state;
