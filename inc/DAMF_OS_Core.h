@@ -72,6 +72,13 @@
 #define FALSE   			        0
 #define TRUE		   		        1
 
+#define CLEAN                       0
+
+#define MAX_N_EVENTS                100
+#define EVAL_PRIO                   0
+#define NO_PRIO                     -1
+#define MIN_PRIO                    1
+#define MAX_PRIO                    5
 #define HEARTBEAT_TIMING	        50
 #define INIT_TASK 			        0
 #define MAX_LOG  			        100	                         //Maximo numero de cambios de conextos registrables
@@ -119,6 +126,12 @@ typedef enum{
 } OS_STATE;
 
 
+typedef struct delay_events
+{
+	uint32_t time_delay;
+	uint32_t origin_task;
+}delay_event_t;
+
 struct Tasks {
 	uint32_t stack_pointer;
 	uint32_t stack[STACK_SIZE/4];
@@ -130,6 +143,12 @@ struct Tasks {
 	char tag[MAX_TAG_LENGTH];
 	uint8_t free_stack;
 	TASK_STATE state;
+	struct delay_events delay_event;
+};
+
+struct Events {
+	void* prmtr;
+	bool (*event_handler)(void*);
 };
 
 struct DAMF_OS {
@@ -142,11 +161,14 @@ struct DAMF_OS {
 	OS_STATE state;
 	bool os_tick_led;
 	int32_t os_tick_counter;
+	uint16_t events_index;
+	struct Events OS_Events[MAX_N_EVENTS];
+	bool scheduler_flag;
 };
 
 /*==================[definicion de prototipos]=================================*/
 
-void os_Include_Task(void *tarea, const char * tag);
+void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority);
 
 void os_Init(void);
 
@@ -155,5 +177,7 @@ void os_yield(void);
 void os_block(void);
 
 void os_Run(void);
+
+void os_delay( const uint32_t time_delay );
 
 #endif /* ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_ */

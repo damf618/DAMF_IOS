@@ -115,8 +115,6 @@ void __attribute__((weak)) errorHook(void *caller)  {
 	}
 #endif
 
-
-
 /*
  *
  *
@@ -143,9 +141,6 @@ void __attribute__((weak)) Idle_Task(void)  {
 }
 
 
-
-
-
 /*************************************************************************************************
 	 *  @brief Ceder CPU de Tareas el DAMF_OS.
      *
@@ -168,7 +163,11 @@ void os_block()
 	os_yield();
 }
 
-void os_Include_Task(void *tarea, const char * tag) {
+
+/*
+ * En caos de la prioridad si es menor o mayor del rango maximo MIN_PRIO (1) y MAX_PRIO (5).
+ * */
+void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
 	//struct Tasks tempTask;
 	if(DAMF.task_counter < MAX_TASKS)
 	{
@@ -177,6 +176,20 @@ void os_Include_Task(void *tarea, const char * tag) {
 		DAMF.OS_Tasks[DAMF.task_counter].id = DAMF.task_counter;
 		memset(DAMF.OS_Tasks[DAMF.task_counter].tag,0,MAX_TAG_LENGTH);
 		memcpy(DAMF.OS_Tasks[DAMF.task_counter].tag,tag,strlen(tag)+1);
+
+		if(Priority<MIN_PRIO)
+		{
+			DAMF.OS_Tasks[DAMF.task_counter].prior = MIN_PRIO;
+		}
+		else if (Priority>MAX_PRIO)
+		{
+			DAMF.OS_Tasks[DAMF.task_counter].prior = MAX_PRIO;
+		}
+		else
+		{
+			DAMF.OS_Tasks[DAMF.task_counter].prior = Priority;
+		}
+
 		//CHECK TODO
 		os_InitTarea((void*)DAMF.OS_Tasks[DAMF.task_counter].function,DAMF.OS_Tasks[DAMF.task_counter].stack, &DAMF.OS_Tasks[DAMF.task_counter].stack_pointer);
 		DAMF.task_counter ++;
@@ -216,7 +229,6 @@ char* os_getError(void)
 {
 	return DAMF.error_tag;
 }
-
 
 
 /*************************************************************************************************
@@ -284,10 +296,13 @@ void os_Init(void)  {
 	 */
 	NVIC_SetPriority(PendSV_IRQn, (1 << __NVIC_PRIO_BITS)-1); // No existe esta  prioridad existe la anterior 0->a este numero -1
 	DAMF.task_counter = RESET_TASK;
-	memset(DAMF.error_tag,0,MAX_TAG_LENGTH);
+	memset(DAMF.error_tag,CLEAN,MAX_TAG_LENGTH);
 	DAMF.running_task = IDLE_TASK_INDEX;
 	DAMF.next_task = INIT_TASK;
 	DAMF.state = INIT;
+	DAMF.os_tick_counter = CLEAN;
+	DAMF.events_index = CLEAN;
+	DAMF.scheduler_flag = FALSE;
 }
 
 
@@ -311,23 +326,7 @@ void os_Include_Idle_Task() {
 }
 
 
-
-/*************************************************************************************************
-	 *  @brief Arranque del OS.
-     *
-     *  @details
-     *  Debe ser llamada luego del OS_Init y posterior a la creación de todas las tareas generadas por el ussuario.
-     *  Crea la Tarea IDLE para gestionar las tareas y funciones del OS a partir de la ùltima tarea creada.
-     *
-	 *  @param 		None.
-	 *  @return     None.
-***************************************************************************************************/
-void os_Run(void)
-{
-	os_Include_Idle_Task();
-}
-
-
+//TODO VALIDAR REORGANIZAR EL SCHEDULER CON EDU-CIAA
 void sched_fix(uint8_t* order_tasks)
 {
 	int8_t  tasks_prio [MAX_TASKS];
@@ -351,10 +350,10 @@ void sched_fix(uint8_t* order_tasks)
 	}
 
 
-	while(actual_index>0)
+	while(actual_index>=0)
 	{
 		//Search for the index of the greater priority value
-		for(uint8_t i=0;i<actual_index;i++)
+		for(uint8_t i=0;i<=actual_index;i++)
 		{
 			if(max<=tasks_prio[i])
 			{
@@ -363,17 +362,96 @@ void sched_fix(uint8_t* order_tasks)
 			}
 		}
 		//Reset the search and delete the actual max value
-		max= 0;
-		tasks_prio[max_index] = -1;
+		max= EVAL_PRIO;
+		tasks_prio[max_index] = NO_PRIO;
 		//save the actual max index
 		tasks_fix[counter] = max_index;
 		counter++;
 	}
 	memcpy(order_tasks,tasks_fix,sizeof(tasks_fix));
+}
 
+//TODO VALIDAR DELAY
+
+bool delay_handler(void* prmtr)
+{
+	bool task_finished = FALSE;
+
+	delay_event_t* event_data = (delay_event_t *)prmtr;
+
+	if(DAMF.os_tick_counter == event_data[0].time_delay)
+	{
+		DAMF.OS_Tasks[event_data[0].origin_task].state = READY;
+		DAMF.scheduler_flag = TRUE;
+		//Rotacion de eventos
+		DAMF.OS_Events[DAMF.events_index-1].prmtr = DAMF.OS_Events[DAMF.events_index].prmtr;
+		DAMF.OS_Events[DAMF.events_index-1].event_handler = DAMF.OS_Events[DAMF.events_index].event_handler;
+		DAMF.events_index--;
+		task_finished = TRUE;
+	}
+	return task_finished;
+}
+
+void os_delay_event(const uint32_t time_delay, uint8_t running_task)
+{
+	DAMF.OS_Tasks[running_task].delay_event.origin_task = running_task;
+	DAMF.OS_Tasks[running_task].delay_event.time_delay  = time_delay + DAMF.os_tick_counter;
+
+
+	DAMF.OS_Events[DAMF.events_index].prmtr =    (void *) &DAMF.OS_Tasks[running_task].delay_event;
+	DAMF.OS_Events[DAMF.events_index].event_handler = (void*) delay_handler;
+	DAMF.events_index ++;
+}
+
+void os_delay( const uint32_t time_delay )
+{
+	// Bloqueo de tarea actual
+	DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
+	// Creacion de evento a validar posteriormente
+	os_delay_event(time_delay,DAMF.running_task);
 }
 
 
+void event_dispatcher()
+{
+	bool finished_event = FALSE;
+	if (DAMF.events_index >= CLEAN)
+	{
+		for(uint32_t i=0;i<=DAMF.events_index;i++)
+		{
+			//TODO revisar
+			//ejecutar el handler del evento correspondiente con su parametro correspondiente
+			//(*rxIsrCallbackUART2)(rxIsrCallbackUART2Params);
+			finished_event = (*DAMF.OS_Events[i].event_handler)(DAMF.OS_Events[i].prmtr);
+			if(finished_event)
+			{
+				i--; //Se reinicia esta ronda del for, para lograr ejecutar la tarea siguiente cuyo indice cambiò
+			}
+		}
+	}
+}
+
+
+
+
+/*************************************************************************************************
+	 *  @brief Arranque del OS.
+     *
+     *  @details
+     *  Debe ser llamada luego del OS_Init y posterior a la creación de todas las tareas generadas por el ussuario.
+     *  Crea la Tarea IDLE para gestionar las tareas y funciones del OS a partir de la ùltima tarea creada.
+     *
+	 *  @param 		None.
+	 *  @return     None.
+***************************************************************************************************/
+void os_Run(void)
+{
+	os_Include_Idle_Task();
+	//TODO Validar
+	//Al iniciar ajustar el scheduler
+	uint8_t TASK_PRIORITIES[MAX_TASKS];
+	sched_fix(TASK_PRIORITIES);
+}
 
 /*************************************************************************************************
 	 *  @brief SysTick Handler.
@@ -431,12 +509,16 @@ static bool scheduler()  {
 ***************************************************************************************************/
 void SysTick_Handler(void)  {
 
+	bool sche = FALSE;
+	DAMF.os_tick_counter++;
 	#ifdef EDUCIAA
 		//Actualización para IDLE Task
 		os_Heartbeat_tick();
 	#endif
 
-	bool sche =scheduler();
+	event_dispatcher();
+
+	sche =scheduler();
 
 	/*
 		 * Luego de determinar cual es la tarea siguiente segun el scheduler, se ejecuta la funcion
@@ -447,6 +529,7 @@ void SysTick_Handler(void)  {
 
 	if (sche)
 	{
+		DAMF.scheduler_flag = FALSE;
 
 	/**
 	 * Se setea el bit correspondiente a la excepcion PendSV

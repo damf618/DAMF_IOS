@@ -57,9 +57,9 @@ int main(void)  {
 
 	os_Init();
 
-	os_Include_Task(&tarea1,"Tarea 1");
-	os_Include_Task(&tarea2,"Tarea 2");
-	os_Include_Task(&tarea2,"Tarea 3");
+	os_Include_Task(&tarea1,"Tarea 1",1);
+	os_Include_Task(&tarea2,"Tarea 2",1);
+	os_Include_Task(&tarea2,"Tarea 3",2);
 
 	os_Run();
 
