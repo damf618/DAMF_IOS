@@ -36,6 +36,7 @@ void tarea1(void)  {
 	while (1) {
 		h++;
 		i++;
+		os_block();
 	}
 }
 
@@ -46,6 +47,18 @@ void tarea2(void)  {
 	while (1) {
 		j++;
 		k++;
+		os_block();
+	}
+}
+
+void tarea3(void)  {
+	uint16_t j = 0;
+	uint16_t k = 0;
+
+	while (1) {
+		j++;
+		k++;
+		os_delay(5);//DELAYENms
 	}
 }
 
@@ -59,7 +72,7 @@ int main(void)  {
 
 	os_Include_Task(&tarea1,"Tarea 1",1);
 	os_Include_Task(&tarea2,"Tarea 2",1);
-	os_Include_Task(&tarea2,"Tarea 3",2);
+	os_Include_Task(&tarea3,"Tarea 3",2);
 
 	os_Run();
 

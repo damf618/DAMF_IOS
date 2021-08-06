@@ -24,9 +24,6 @@ static void os_InitTarea(void *tarea, uint32_t *stack, uint32_t *stack_pointer);
 static bool scheduler(void);
 static void os_set_Error(char* Error_msg);
 
-#ifdef EDUCIAA
-	static void os_Heartbeat_tick(void);
-#endif
 /*=============================================================================*/
 
 
@@ -54,8 +51,6 @@ void __attribute__((weak)) returnHook(void)  {
 	while(1);
 }
 
-
-
 /*************************************************************************************************
 	 *  @brief Hook de tick de sistema
      *
@@ -76,8 +71,6 @@ void __attribute__((weak)) returnHook(void)  {
 void __attribute__((weak)) tickHook(void)  {
 	__asm volatile( "nop" );
 }
-
-
 
 /*************************************************************************************************
 	 *  @brief Hook de error de sistema
@@ -102,19 +95,6 @@ void __attribute__((weak)) errorHook(void *caller)  {
 	while(1);
 }
 
-
-
-#ifdef EDUCIAA
-	static void os_Heartbeat_tick(void)
-	{
-		DAMF.os_tick_counter --;
-		if(DAMF.os_tick_counter<=0)
-		{
-			DAMF.os_tick_led = TRUE;
-		}
-	}
-#endif
-
 /*
  *
  *
@@ -124,12 +104,11 @@ void __attribute__((weak)) Idle_Task(void)  {
 #ifdef EDUCIAA
 	#include "board.h"
 	#define LED 0
+
 	while(1)
 	{
-		if(DAMF.os_tick_led)
+		if(DAMF.os_tick_counter % HEARTBEAT_TIMING == CLEAN )
 		{
-			DAMF.os_tick_led = FALSE;
-			DAMF.os_tick_counter = HEARTBEAT_TIMING;
 			Board_LED_Toggle(LED);
 		}
 		//NO esta bloqueando y se va al retorno
@@ -140,7 +119,6 @@ void __attribute__((weak)) Idle_Task(void)  {
 #endif
 }
 
-
 /*************************************************************************************************
 	 *  @brief Ceder CPU de Tareas el DAMF_OS.
      *
@@ -150,19 +128,18 @@ void __attribute__((weak)) Idle_Task(void)  {
 	 *  @param 		None.
 	 *  @return     None.
 ***************************************************************************************************/
-
 void os_yield()
 {
 	//TODO LLamada a Interrupción SysTick Handler
 	__WFI();
 }
 
+//
 void os_block()
 {
 	DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
 	os_yield();
 }
-
 
 /*
  * En caos de la prioridad si es menor o mayor del rango maximo MIN_PRIO (1) y MAX_PRIO (5).
@@ -209,13 +186,11 @@ void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
 	 *  @param Error_msg   Mensaje que describe el error detectado.
 	 *  @return     None.
 ***************************************************************************************************/
-
 static void os_set_Error(char* Error_msg)
 {
 	memcpy(DAMF.error_tag,Error_msg,strlen(Error_msg)+1);
 	errorHook(os_InitTarea);
 }
-
 
 /*************************************************************************************************
 	 *  @brief Retorno de mensaje de error.
@@ -229,7 +204,6 @@ char* os_getError(void)
 {
 	return DAMF.error_tag;
 }
-
 
 /*************************************************************************************************
 	 *  @brief Inicializa las tareas que correran en el OS.
@@ -276,7 +250,6 @@ static void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_poi
 
 }
 
-
 /*************************************************************************************************
 	 *  @brief Inicializa el OS.
      *
@@ -305,13 +278,12 @@ void os_Init(void)  {
 	DAMF.scheduler_flag = FALSE;
 }
 
-
 void os_Include_Idle_Task() {
 	//struct Tasks tempTask;
 
 	if(DAMF.task_counter <= MAX_TASKS)
 	{
-		DAMF.OS_Tasks[IDLE_TASK_INDEX].function = (uint32_t) &Idle_Task;
+		DAMF.OS_Tasks[IDLE_TASK_INDEX].function = (uint32_t) Idle_Task;
 		DAMF.OS_Tasks[IDLE_TASK_INDEX].state = READY;
 		DAMF.OS_Tasks[IDLE_TASK_INDEX].id = IDLE_TASK_INDEX;
 		memset(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,0,MAX_TAG_LENGTH);
@@ -324,7 +296,6 @@ void os_Include_Idle_Task() {
 		os_set_Error(MAX_TASK_MSG);
 	}
 }
-
 
 //TODO VALIDAR REORGANIZAR EL SCHEDULER CON EDU-CIAA
 void sched_fix(uint8_t* order_tasks)
@@ -350,10 +321,10 @@ void sched_fix(uint8_t* order_tasks)
 	}
 
 
-	while(actual_index>=0)
+	while(actual_index-1>counter)
 	{
 		//Search for the index of the greater priority value
-		for(uint8_t i=0;i<=actual_index;i++)
+		for(uint8_t i=0;i<actual_index;i++)
 		{
 			if(max<=tasks_prio[i])
 			{
@@ -409,19 +380,17 @@ void os_delay( const uint32_t time_delay )
 	DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
 	// Creacion de evento a validar posteriormente
 	os_delay_event(time_delay,DAMF.running_task);
+	__WFI();
 }
-
 
 void event_dispatcher()
 {
 	bool finished_event = FALSE;
-	if (DAMF.events_index >= CLEAN)
+	if (DAMF.events_index > CLEAN)
 	{
-		for(uint32_t i=0;i<=DAMF.events_index;i++)
+		for(uint32_t i=0;i<DAMF.events_index;i++)
 		{
-			//TODO revisar
 			//ejecutar el handler del evento correspondiente con su parametro correspondiente
-			//(*rxIsrCallbackUART2)(rxIsrCallbackUART2Params);
 			finished_event = (*DAMF.OS_Events[i].event_handler)(DAMF.OS_Events[i].prmtr);
 			if(finished_event)
 			{
@@ -430,9 +399,6 @@ void event_dispatcher()
 		}
 	}
 }
-
-
-
 
 /*************************************************************************************************
 	 *  @brief Arranque del OS.
@@ -449,8 +415,7 @@ void os_Run(void)
 	os_Include_Idle_Task();
 	//TODO Validar
 	//Al iniciar ajustar el scheduler
-	uint8_t TASK_PRIORITIES[MAX_TASKS];
-	sched_fix(TASK_PRIORITIES);
+	sched_fix(DAMF.OS_Prior);
 }
 
 /*************************************************************************************************
@@ -496,7 +461,6 @@ static bool scheduler()  {
 	return aux;
 }
 
-
 /*************************************************************************************************
 	 *  @brief SysTick Handler.
      *
@@ -511,10 +475,6 @@ void SysTick_Handler(void)  {
 
 	bool sche = FALSE;
 	DAMF.os_tick_counter++;
-	#ifdef EDUCIAA
-		//Actualización para IDLE Task
-		os_Heartbeat_tick();
-	#endif
 
 	event_dispatcher();
 
@@ -550,7 +510,6 @@ void SysTick_Handler(void)  {
 	}
 }
 
-
 /*************************************************************************************************
 	 *  @brief Funcion para determinar el proximo contexto.
      *
@@ -566,6 +525,15 @@ void SysTick_Handler(void)  {
 uint32_t getContextoSiguiente(uint32_t sp_actual)  {
 	uint32_t sp_siguiente;
 
+	if(DAMF.state == INIT)
+	{
+		DAMF.state = WORKING;
+		sp_siguiente = DAMF.OS_Tasks[DAMF.next_task].stack_pointer;        //Asignacion de nuevo stackpointer
+		DAMF.OS_Tasks[DAMF.next_task].state = RUNNING;
+		DAMF.running_task = DAMF.next_task;
+
+		return sp_siguiente;
+	}
 	DAMF.OS_Tasks[DAMF.running_task].stack_pointer = sp_actual;
 	sp_siguiente = DAMF.OS_Tasks[DAMF.next_task].stack_pointer;        //Asignacion de nuevo stackpointer
 	DAMF.OS_Tasks[DAMF.next_task].state = RUNNING;

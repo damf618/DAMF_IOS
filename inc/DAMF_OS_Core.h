@@ -155,6 +155,7 @@ struct DAMF_OS {
 	uint8_t running_task;
 	uint8_t next_task;
 	uint8_t tasks_log[MAX_LOG];
+	uint8_t OS_Prior[MAX_NUMBER_TASKS];
 	struct Tasks OS_Tasks[MAX_NUMBER_TASKS];
 	uint8_t task_counter;
 	char error_tag[MAX_TAG_LENGTH];

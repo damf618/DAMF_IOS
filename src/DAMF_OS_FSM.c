@@ -20,37 +20,56 @@
 
 void os_fsm_Init()
 {
-	DAMF.state = WORKING;
 	//DEBE SER DIFERENTE DE LA INICIAL PARA QUE EL SCHEDULER FUNCIONE CORRECTAMENTE
-	DAMF.next_task = INIT_TASK;
+	DAMF.next_task = IDLE_TASK_INDEX;
 }
 
 bool os_fsm_Running(void)
 {
-	bool aux = FALSE;
+	bool any_ready = FALSE;
+	bool any_running = FALSE;
 
+	uint8_t next_ready;
+	uint8_t next_ready_prior;
+
+	//Determinar la siguiente tarea en READY
 	for(int8_t index=0;index<DAMF.task_counter;index++)           //Scheduler con Starvation
 	{
-		//for(int8_t index=search_index;index<DAMF.task_counter;index++){  //Scheduler V2
-		if(DAMF.OS_Tasks[index].state == READY)
+		if(DAMF.OS_Tasks[DAMF.OS_Prior[index]].state == READY)
 		{
-			DAMF.OS_Tasks[DAMF.running_task].state = READY;
-			DAMF.next_task = index;
-			aux = TRUE;
+			next_ready = DAMF.OS_Prior[index];
+			next_ready_prior = DAMF.OS_Tasks[DAMF.OS_Prior[index]].prior;
+			any_ready = TRUE;
 			break;
 		}
+		else if(DAMF.OS_Tasks[DAMF.OS_Prior[index]].state == RUNNING)
+		{
+			any_running = TRUE;
+		}
 	}
-	//IDLE Task activa, no hay tareas en estado READY
-	if(!aux)
+
+	if(any_ready)
 	{
+		if( (DAMF.OS_Tasks[DAMF.running_task].state==BLOCKED)||(next_ready_prior > DAMF.OS_Tasks[DAMF.running_task].prior))
+		{
+			if(DAMF.OS_Tasks[DAMF.running_task].state!=BLOCKED)
+			{
+				DAMF.OS_Tasks[DAMF.running_task].state = READY;
+			}
+			DAMF.next_task = next_ready;
+			return TRUE;
+		}
+	}
+	else if(!any_running)
+	{
+		//IDLE Task activa, no hay tareas en estado READY
 		if(DAMF.running_task!=IDLE_TASK_INDEX)
 		{
 			DAMF.next_task = IDLE_TASK_INDEX;
-			aux = TRUE;
+			return TRUE;
 		}
 	}
-
-	return aux;
+	return FALSE;
 }
 
 void os_fsm_Checking(void)
