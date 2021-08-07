@@ -17,6 +17,10 @@
 #include "stdio.h"
 #include "string.h"
 
+/************************************************************************************
+ * 			Definiciones de Tipo de Variables
+ ***********************************************************************************/
+#define damf_semaphore        semaphore_event_t
 
 /************************************************************************************
  * 			Tamaño del stack predefinido para cada tarea expresado en bytes
@@ -73,8 +77,14 @@
 #define TRUE		   		        1
 
 #define CLEAN                       0
+#define PREV                       -1
 
 #define MAX_N_EVENTS                100
+#define MAX_N_SEMA		            16
+#define MAX_N_QUEUE	                8
+
+#define MIN_SEMA					1
+#define MAX_SEMA					10
 #define EVAL_PRIO                   0
 #define NO_PRIO                     -1
 #define MIN_PRIO                    1
@@ -124,6 +134,14 @@ typedef enum{
     CHECKING = 2,
 	ERROR_H = 3
 } OS_STATE;
+
+//TODO estructura del semaphore
+typedef struct semaphore_events
+{
+	uint8_t Sema_counter;
+	uint8_t Total_counter;
+	uint8_t origin_task;
+}semaphore_event_t;
 
 
 typedef struct delay_events
@@ -178,6 +196,12 @@ void os_yield(void);
 void os_block(void);
 
 void os_Run(void);
+
+void os_Semaphore_Create(semaphore_event_t * pointer, uint8_t N_config);
+
+void os_Sema_Take(semaphore_event_t * pointer);
+
+void os_Sema_Free(semaphore_event_t * pointer);
 
 void os_delay( const uint32_t time_delay );
 

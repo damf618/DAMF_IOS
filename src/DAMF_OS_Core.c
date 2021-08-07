@@ -510,6 +510,94 @@ void SysTick_Handler(void)  {
 	}
 }
 
+//
+bool sema_handler( void* prmtr )
+{
+	semaphore_event_t* sema = (semaphore_event_t*) prmtr;
+
+	if(sema->Sema_counter >= sema->Total_counter)
+	{
+		DAMF.OS_Tasks[sema->origin_task].state = BLOCKED;
+	}
+	else
+	{
+		DAMF.OS_Tasks[sema->origin_task].state = READY;
+	}
+
+	DAMF.scheduler_flag = TRUE;
+	//Rotacion de eventos
+	DAMF.OS_Events[DAMF.events_index+PREV].prmtr = DAMF.OS_Events[DAMF.events_index].prmtr;
+	DAMF.OS_Events[DAMF.events_index+PREV].event_handler = DAMF.OS_Events[DAMF.events_index].event_handler;
+	DAMF.events_index--;
+
+	return TRUE;
+}
+
+//
+void os_Semaphore_Create(semaphore_event_t * pointer, uint8_t N_config)
+{
+	//TODO VALIDA CREACION
+	uint8_t config_n = CLEAN;
+
+	if(N_config < MIN_SEMA)
+	{
+		config_n = MIN_SEMA;
+	}
+	else if(N_config > MAX_SEMA)
+	{
+		config_n = MAX_SEMA;
+	}
+	else
+	{
+		config_n = N_config;
+	}
+	pointer[0].Total_counter = config_n;
+	pointer[0].Sema_counter = config_n;
+
+	//TODO Set ERROR else max numero de semaphores alcanzado
+}
+
+//
+void os_semaphore_event(semaphore_event_t * pointer)
+{
+	DAMF.OS_Events[DAMF.events_index].prmtr =    (void *) pointer;
+	DAMF.OS_Events[DAMF.events_index].event_handler = (void*) sema_handler;
+	DAMF.events_index ++;
+}
+
+//
+void os_Sema_Take(semaphore_event_t * pointer)
+{
+	semaphore_event_t* sema = pointer;
+
+	if(sema->Sema_counter < sema->Total_counter)
+	{
+		sema->Sema_counter++;
+	}
+	else
+	{
+		sema->origin_task = DAMF.running_task;
+		//Si se ha alcanzado el max numero de Takes, genero un evento Semaphore
+		os_semaphore_event(pointer);
+		__WFI();
+	}
+}
+
+//
+void os_Sema_Free(semaphore_event_t * pointer)
+{
+	semaphore_event_t* sema = pointer;
+
+	if(sema->Sema_counter > CLEAN)
+	{
+		sema->Sema_counter--;
+		/*Si libero un semaforo, puede que se desbloquee alguna tarea, por lo
+		que se genera un evento Semaphore*/
+		os_semaphore_event(sema);
+		__WFI();
+	}
+}
+
 /*************************************************************************************************
 	 *  @brief Funcion para determinar el proximo contexto.
      *

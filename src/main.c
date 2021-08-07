@@ -11,6 +11,9 @@
 
 /*==================[Global data declaration]==============================*/
 
+damf_semaphore Sema1;
+damf_semaphore Sema2;
+
 /*==================[internal functions declaration]=========================*/
 
 /*==================[internal data definition]===============================*/
@@ -36,6 +39,7 @@ void tarea1(void)  {
 	while (1) {
 		h++;
 		i++;
+		os_Sema_Free(&Sema1);
 		os_block();
 	}
 }
@@ -47,6 +51,7 @@ void tarea2(void)  {
 	while (1) {
 		j++;
 		k++;
+		os_Sema_Take(&Sema1);
 		os_block();
 	}
 }
@@ -58,7 +63,7 @@ void tarea3(void)  {
 	while (1) {
 		j++;
 		k++;
-		os_delay(5);//DELAYENms
+		os_delay(15);//DELAYENms
 	}
 }
 
@@ -67,6 +72,9 @@ void tarea3(void)  {
 int main(void)  {
 
 	initHardware();
+
+	os_Semaphore_Create(&Sema1, MIN_SEMA);
+	os_Semaphore_Create(&Sema2, 5);
 
 	os_Init();
 

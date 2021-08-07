@@ -50,7 +50,7 @@ bool os_fsm_Running(void)
 
 	if(any_ready)
 	{
-		if( (DAMF.OS_Tasks[DAMF.running_task].state==BLOCKED)||(next_ready_prior > DAMF.OS_Tasks[DAMF.running_task].prior))
+		if( (DAMF.OS_Tasks[DAMF.running_task].state==BLOCKED)||(next_ready_prior >= DAMF.OS_Tasks[DAMF.running_task].prior))
 		{
 			if(DAMF.OS_Tasks[DAMF.running_task].state!=BLOCKED)
 			{
