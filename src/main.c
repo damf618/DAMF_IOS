@@ -36,34 +36,49 @@ static void initHardware(void)  {
 void tarea1(void)  {
 	uint16_t h = 0;
 	uint16_t i = 0;
+	uint8_t led_red = 4;
 	while (1) {
 		h++;
 		i++;
+		os_delay(600);//DELAY ms
+		Board_LED_Toggle(led_red);
 		os_Sema_Free(&Sema1);
-		os_block();
+		os_Sema_Free(&Sema1);
+		os_delay(850);//DELAY ms
+		Board_LED_Toggle(led_red);
+		//os_block();
 	}
 }
 
 void tarea2(void)  {
 	uint16_t j = 0;
 	uint16_t k = 0;
+	uint8_t led_gre = 5;
 
 	while (1) {
 		j++;
 		k++;
+		os_delay(200);//DELAY ms
+		Board_LED_Toggle(led_gre);
 		os_Sema_Take(&Sema1);
-		os_block();
+		os_delay(200);//DELAY ms
+		os_Sema_Take(&Sema1);
+		os_delay(200);//DELAY ms
+		os_Sema_Take(&Sema1);
+		Board_LED_Toggle(led_gre);
 	}
 }
 
 void tarea3(void)  {
 	uint16_t j = 0;
 	uint16_t k = 0;
+	uint8_t led_yel = 3;
 
 	while (1) {
 		j++;
 		k++;
-		os_delay(15);//DELAYENms
+		os_delay(1500);//DELAY ms
+		Board_LED_Toggle(led_yel);
 	}
 }
 
@@ -73,7 +88,7 @@ int main(void)  {
 
 	initHardware();
 
-	os_Semaphore_Create(&Sema1, MIN_SEMA);
+	os_Semaphore_Create(&Sema1, 2);
 	os_Semaphore_Create(&Sema2, 5);
 
 	os_Init();

@@ -35,7 +35,6 @@ static void os_set_Error(char* Error_msg);
  * redefinir dentro de su codigo y poblarlos segun necesidad
  */
 
-
 /*************************************************************************************************
 	 *  @brief Hook de retorno de tareas
      *
@@ -350,14 +349,10 @@ bool delay_handler(void* prmtr)
 
 	delay_event_t* event_data = (delay_event_t *)prmtr;
 
-	if(DAMF.os_tick_counter == event_data[0].time_delay)
+	if(DAMF.os_tick_counter >= event_data[0].time_delay)
 	{
 		DAMF.OS_Tasks[event_data[0].origin_task].state = READY;
 		DAMF.scheduler_flag = TRUE;
-		//Rotacion de eventos
-		DAMF.OS_Events[DAMF.events_index-1].prmtr = DAMF.OS_Events[DAMF.events_index].prmtr;
-		DAMF.OS_Events[DAMF.events_index-1].event_handler = DAMF.OS_Events[DAMF.events_index].event_handler;
-		DAMF.events_index--;
 		task_finished = TRUE;
 	}
 	return task_finished;
@@ -394,6 +389,13 @@ void event_dispatcher()
 			finished_event = (*DAMF.OS_Events[i].event_handler)(DAMF.OS_Events[i].prmtr);
 			if(finished_event)
 			{
+				DAMF.events_index--;
+				//Rotacion de eventos
+				for(uint32_t j=i;j<DAMF.events_index;j++)
+				{
+					DAMF.OS_Events[j].prmtr = DAMF.OS_Events[j+1].prmtr;
+					DAMF.OS_Events[j].event_handler = DAMF.OS_Events[j+1].event_handler;
+				}
 				i--; //Se reinicia esta ronda del for, para lograr ejecutar la tarea siguiente cuyo indice cambiò
 			}
 		}
@@ -525,10 +527,12 @@ bool sema_handler( void* prmtr )
 	}
 
 	DAMF.scheduler_flag = TRUE;
-	//Rotacion de eventos
+
+	/*
 	DAMF.OS_Events[DAMF.events_index+PREV].prmtr = DAMF.OS_Events[DAMF.events_index].prmtr;
 	DAMF.OS_Events[DAMF.events_index+PREV].event_handler = DAMF.OS_Events[DAMF.events_index].event_handler;
 	DAMF.events_index--;
+	*/
 
 	return TRUE;
 }
