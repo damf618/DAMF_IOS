@@ -21,6 +21,7 @@
  * 			Definiciones de Tipo de Variables
  ***********************************************************************************/
 #define damf_semaphore        semaphore_event_t
+#define damf_queue			  queue_event_t
 
 /************************************************************************************
  * 			Tamaño del stack predefinido para cada tarea expresado en bytes
@@ -81,7 +82,8 @@
 
 #define MAX_N_EVENTS                100
 #define MAX_N_SEMA		            16
-#define MAX_N_QUEUE	                8
+#define MAX_QUEUE_SIZE				350
+#define MIN_QUEUE_LENGTH			1
 
 #define MIN_SEMA					1
 #define MAX_SEMA					10
@@ -135,13 +137,23 @@ typedef enum{
 	ERROR_H = 3
 } OS_STATE;
 
-//TODO estructura del semaphore
 typedef struct semaphore_events
 {
 	uint8_t Sema_counter;
 	uint8_t Total_counter;
 	uint8_t origin_task;
 }semaphore_event_t;
+
+
+typedef struct queue_events
+{
+	void* prmt;
+	uint32_t n_slots;
+	uint32_t slot_size;
+	uint8_t queue_counter;
+	uint32_t queue_array[MAX_QUEUE_SIZE/4];
+	uint8_t origin_task;
+}queue_event_t;
 
 
 typedef struct delay_events
@@ -204,5 +216,12 @@ void os_Sema_Take(semaphore_event_t * pointer);
 void os_Sema_Free(semaphore_event_t * pointer);
 
 void os_delay( const uint32_t time_delay );
+
+void os_Queue_Create(queue_event_t * queue_p, uint8_t n_data, uint32_t size_data);
+
+void os_push_queue(queue_event_t * queue_p, void* data);
+
+void os_pull_queue(queue_event_t * queue_p, void* vari);
+
 
 #endif /* ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_ */

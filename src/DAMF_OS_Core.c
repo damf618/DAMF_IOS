@@ -11,7 +11,8 @@
  */
 
 
-#include "stdio.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "DAMF_OS_FSM.h"
@@ -296,7 +297,108 @@ void os_Include_Idle_Task() {
 	}
 }
 
-//TODO VALIDAR REORGANIZAR EL SCHEDULER CON EDU-CIAA
+
+/***********QUEUE************/
+
+//TODO VALIDAR
+void os_Queue_Create(queue_event_t * queue_p, uint8_t n_data, uint32_t size_data)
+{
+	uint8_t queue_lenght = 0;
+	uint8_t queue_max_length = (MAX_QUEUE_SIZE/4)/size_data;
+
+	if(size_data <= (MAX_QUEUE_SIZE/4))
+	{
+
+		if(n_data < MIN_QUEUE_LENGTH)
+		{
+			queue_lenght = MIN_QUEUE_LENGTH;
+		}
+		//TODO Error de memoria insuficiente
+		else if (n_data > queue_max_length)
+		{
+			queue_lenght = queue_max_length;
+		}
+		else
+		{
+			queue_lenght = n_data;
+		}
+
+		queue_p->n_slots = queue_lenght;
+		queue_p->queue_counter = 0;
+		queue_p->slot_size = size_data;
+	}
+	/*TODO Error de memoria insuficiente
+	else
+	{
+
+	}
+	*/
+}
+
+//
+bool queue_handler(void * prmtr)
+{
+	bool task_finished = FALSE;
+
+	queue_event_t* event_data = (queue_event_t *)prmtr;
+
+	if((event_data->queue_counter > 0) && (event_data->queue_counter <= event_data->n_slots))
+	{
+		DAMF.OS_Tasks[event_data->origin_task].state = READY;
+		DAMF.scheduler_flag = TRUE;
+		task_finished = TRUE;
+	}
+	return task_finished;
+}
+
+//
+void os_queue_event_t(queue_event_t * queue_p, uint8_t running_task)
+{
+	queue_p->origin_task = running_task;
+
+	DAMF.OS_Events[DAMF.events_index].prmtr =    (void *) queue_p;
+	DAMF.OS_Events[DAMF.events_index].event_handler = (void*) queue_handler;
+	DAMF.events_index ++;
+}
+
+//
+void os_push_queue(queue_event_t * queue_p, void* data)
+{
+
+	//TODO Validar espacio libre
+	if(queue_p->queue_counter >= queue_p->n_slots)
+	{
+		DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
+		os_queue_event_t(queue_p, DAMF.running_task);
+		__WFI();
+	}
+
+	uint32_t offset = queue_p->queue_counter * queue_p->slot_size;
+	uint32_t slot_pointer = (uint32_t) queue_p->queue_array + offset;
+
+	memcpy((void *)slot_pointer, data, queue_p->slot_size);
+	queue_p->queue_counter++;
+}
+
+//
+void os_pull_queue(queue_event_t * queue_p, void* vari)
+{
+	//TODO Validar espacio lleno
+	if(queue_p->queue_counter <= 0)
+	{
+		DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
+		os_queue_event_t(queue_p, DAMF.running_task);
+		__WFI();
+	}
+
+	uint32_t offset = (queue_p->queue_counter+PREV) * queue_p->slot_size;
+	uint32_t slot_pointer = (uint32_t) queue_p->queue_array + offset;
+
+	memcpy(vari, (void *)slot_pointer, queue_p->slot_size);
+	queue_p->queue_counter--;
+}
+
+//
 void sched_fix(uint8_t* order_tasks)
 {
 	int8_t  tasks_prio [MAX_TASKS];
@@ -341,23 +443,23 @@ void sched_fix(uint8_t* order_tasks)
 	memcpy(order_tasks,tasks_fix,sizeof(tasks_fix));
 }
 
-//TODO VALIDAR DELAY
-
+//
 bool delay_handler(void* prmtr)
 {
 	bool task_finished = FALSE;
 
 	delay_event_t* event_data = (delay_event_t *)prmtr;
 
-	if(DAMF.os_tick_counter >= event_data[0].time_delay)
+	if(DAMF.os_tick_counter >= event_data->time_delay)
 	{
-		DAMF.OS_Tasks[event_data[0].origin_task].state = READY;
+		DAMF.OS_Tasks[event_data->origin_task].state = READY;
 		DAMF.scheduler_flag = TRUE;
 		task_finished = TRUE;
 	}
 	return task_finished;
 }
 
+//
 void os_delay_event(const uint32_t time_delay, uint8_t running_task)
 {
 	DAMF.OS_Tasks[running_task].delay_event.origin_task = running_task;
@@ -369,6 +471,7 @@ void os_delay_event(const uint32_t time_delay, uint8_t running_task)
 	DAMF.events_index ++;
 }
 
+//
 void os_delay( const uint32_t time_delay )
 {
 	// Bloqueo de tarea actual
@@ -378,6 +481,7 @@ void os_delay( const uint32_t time_delay )
 	__WFI();
 }
 
+//
 void event_dispatcher()
 {
 	bool finished_event = FALSE;
