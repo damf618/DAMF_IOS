@@ -42,6 +42,8 @@ PendSV_Handler:
 	* stack inicial, ese stack se pierde porque no hay seguimiento del MSP en el primer ingreso
 	*/
 
+	cpsid i
+
 	tst lr,0x10
 	it eq
 	vpusheq {s16-s31}
@@ -55,5 +57,7 @@ PendSV_Handler:
 	tst lr,0x10
 	it eq
 	vpopeq {s16-s31}
+	cpsie i
+
 	bx lr					//se hace un branch indirect con el valor de LR que es nuevamente EXEC_RETURN
 

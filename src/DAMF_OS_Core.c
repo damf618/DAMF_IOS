@@ -154,6 +154,9 @@ void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
 		memset(DAMF.OS_Tasks[DAMF.task_counter].tag,0,MAX_TAG_LENGTH);
 		memcpy(DAMF.OS_Tasks[DAMF.task_counter].tag,tag,strlen(tag)+1);
 
+		DAMF.OS_Tasks[DAMF.task_counter].round_robin = FALSE;
+
+
 		if(Priority<MIN_PRIO)
 		{
 			DAMF.OS_Tasks[DAMF.task_counter].prior = MIN_PRIO;
@@ -276,7 +279,15 @@ void os_Init(void)  {
 	DAMF.os_tick_counter = CLEAN;
 	DAMF.events_index = CLEAN;
 	DAMF.scheduler_flag = FALSE;
-	DAMF.critical_counter = 0;
+	DAMF.critical_counter = CLEAN;
+
+	for(uint8_t i = 0;i<CANT_PRIO;i++)
+	{
+		for(uint8_t k = 0;k<MAX_TASKS;k++)
+		{
+			DAMF.OS_Tasks_Prio[i][k] = TASK_ROUND_ROB;
+		}
+	}
 }
 
 void os_Include_Idle_Task() {
@@ -438,6 +449,11 @@ void sched_fix(uint8_t* order_tasks)
 	uint8_t actual_index = DAMF.task_counter;
 	uint8_t counter = 0;
 
+	uint8_t counter0 = 0;
+	uint8_t counter1 = 0;
+	uint8_t counter2 = 0;
+	uint8_t counter3 = 0;
+
 	//create a vector of the tasks priorities
 	for(uint8_t i=0;i<MAX_TASKS;i++)
 	{
@@ -449,6 +465,33 @@ void sched_fix(uint8_t* order_tasks)
 		{
 			tasks_prio[i]=-1;
 		}
+
+		switch(tasks_prio[i])
+		{
+			case 0:
+				DAMF.OS_Tasks_Prio[0][counter0]=i;
+				counter0++;
+				break;
+
+			case 1:
+				DAMF.OS_Tasks_Prio[1][counter1]=i;
+				counter1++;
+				break;
+
+			case 2:
+				DAMF.OS_Tasks_Prio[2][counter2]=i;
+				counter2++;
+				break;
+
+			case 3:
+				DAMF.OS_Tasks_Prio[3][counter3]=i;
+				counter3++;
+				break;
+
+			default:
+				break;
+		}
+
 	}
 
 
@@ -756,6 +799,7 @@ uint32_t getContextoSiguiente(uint32_t sp_actual)  {
 		DAMF.state = WORKING;
 		sp_siguiente = DAMF.OS_Tasks[DAMF.next_task].stack_pointer;        //Asignacion de nuevo stackpointer
 		DAMF.OS_Tasks[DAMF.next_task].state = RUNNING;
+		DAMF.OS_Tasks[DAMF.next_task].round_robin = TRUE;
 		DAMF.running_task = DAMF.next_task;
 
 		return sp_siguiente;

@@ -91,7 +91,8 @@
 #define EVAL_PRIO                   0
 #define NO_PRIO                     -1
 #define MIN_PRIO                    1
-#define MAX_PRIO                    5
+#define MAX_PRIO                    3
+#define CANT_PRIO					4
 #define HEARTBEAT_TIMING	        50
 #define INIT_TASK 			        0
 #define MAX_LOG  			        100	                         //Maximo numero de cambios de conextos registrables
@@ -102,6 +103,7 @@
 #define RESET_TIME 			        0
 #define RESET_COUNTER		        0
 #define RESET_TASK   		        0
+#define TASK_ROUND_ROB				55
 
 #define IDLE_TASK_TAG	            "DAMF_OS IDLE TASK "
 #define DEFAULT_TAG		            "TASK #"                     //En caso de que no se defina un tag a la tarea
@@ -175,6 +177,7 @@ struct Tasks {
 	uint8_t free_stack;
 	TASK_STATE state;
 	struct delay_events delay_event;
+	bool round_robin;
 };
 
 struct Events {
@@ -197,6 +200,7 @@ struct DAMF_OS {
 	struct Events OS_Events[MAX_N_EVENTS];
 	bool scheduler_flag;
 	uint8_t critical_counter;
+	uint8_t OS_Tasks_Prio[CANT_PRIO][MAX_TASKS];
 };
 
 /*==================[definicion de prototipos]=================================*/

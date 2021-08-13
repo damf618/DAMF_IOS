@@ -28,9 +28,12 @@ bool os_fsm_Running(void)
 {
 	bool any_ready = FALSE;
 	bool any_running = FALSE;
+	bool Round_Robin_Reset = FALSE;
 
 	uint8_t next_ready;
 	uint8_t next_ready_prior;
+
+	uint8_t possible_tasks[MAX_TASKS];
 
 	//Determinar la siguiente tarea en READY
 	for(int8_t index=0;index<DAMF.task_counter;index++)           //Scheduler con Starvation
@@ -52,11 +55,43 @@ bool os_fsm_Running(void)
 	{
 		if( (DAMF.OS_Tasks[DAMF.running_task].state==BLOCKED)||(next_ready_prior >= DAMF.OS_Tasks[DAMF.running_task].prior))
 		{
+
+			//ajustedescheduler
+			memcpy(possible_tasks,DAMF.OS_Tasks_Prio[next_ready_prior],sizeof(possible_tasks));
+
+			while(!Round_Robin_Reset)
+			{
+				for(uint8_t k = 0;k<DAMF.task_counter;k++)
+				{
+					if((DAMF.OS_Tasks[possible_tasks[k]].state==READY)
+							&&(DAMF.OS_Tasks[possible_tasks[k]].round_robin == FALSE ))
+					{
+						DAMF.OS_Tasks[possible_tasks[k]].round_robin = TRUE;
+						Round_Robin_Reset = TRUE;
+						if(DAMF.OS_Tasks[DAMF.running_task].state!=BLOCKED)
+						{
+							DAMF.OS_Tasks[DAMF.running_task].state = READY;
+						}
+						DAMF.next_task = possible_tasks[k];
+						break;
+					}
+				}
+				if(!Round_Robin_Reset)
+				{
+					for(uint8_t k = 0;k<DAMF.task_counter;k++)
+					{
+						DAMF.OS_Tasks[possible_tasks[k]].round_robin = CLEAN;
+					}
+				}
+			}
+
+			/*
 			if(DAMF.OS_Tasks[DAMF.running_task].state!=BLOCKED)
 			{
 				DAMF.OS_Tasks[DAMF.running_task].state = READY;
 			}
 			DAMF.next_task = next_ready;
+			*/
 			return TRUE;
 		}
 	}
