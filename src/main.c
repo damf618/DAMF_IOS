@@ -7,9 +7,7 @@
 #include "../inc/DAMF_OS_Core.h"
 
 /*==================[macros and definitions]=================================*/
-
-#define MILISEC		1000
-
+#define MILISEC	1000
 
 /*==================[Global data declaration]==============================*/
 
@@ -19,15 +17,6 @@ damf_queue     Queue1;
 
 /*==================[internal functions declaration]=========================*/
 
-/*==================[internal data definition]===============================*/
-
-/*==================[external data definition]===============================*/
-
-/*==================[internal functions definition]==========================*/
-
-/** @brief hardware initialization function
- *	@return none
- */
 static void initHardware(void)  {
 	Board_Init();
 	SystemCoreClockUpdate();
@@ -105,6 +94,16 @@ void tarea3(void)  {
 	}
 }
 
+void woaow(void)
+{
+	for(uint16_t k = 0;k<65000;k++)
+	{
+		Board_LED_Toggle(3);
+		Board_LED_Toggle(4);
+		Board_LED_Toggle(5);
+	}
+}
+
 /*============================================================================*/
 
 int main(void)  {
@@ -121,6 +120,8 @@ int main(void)  {
 	os_Include_Task(&tarea1,"Tarea 1",1);
 	os_Include_Task(&tarea2,"Tarea 2",1);
 	os_Include_Task(&tarea3,"Tarea 3",2);
+
+	os_SetIRQ(PIN_INT0_IRQn,&woaow);
 
 	os_Run();
 

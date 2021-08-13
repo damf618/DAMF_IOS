@@ -276,6 +276,7 @@ void os_Init(void)  {
 	DAMF.os_tick_counter = CLEAN;
 	DAMF.events_index = CLEAN;
 	DAMF.scheduler_flag = FALSE;
+	DAMF.critical_counter = 0;
 }
 
 void os_Include_Idle_Task() {
@@ -297,6 +298,35 @@ void os_Include_Idle_Task() {
 	}
 }
 
+
+/***************CRITICAL********************/
+
+inline void os_enter_critical()  {
+	__disable_irq();
+	DAMF.critical_counter++;
+}
+
+
+/*************************************************************************************************
+	 *  @brief Marca el final de una seccion como seccion critica.
+     *
+     *  @details
+     *   Las secciones criticas son aquellas que deben ejecutar operaciones atomicas, es decir que
+     *   no pueden ser interrumpidas. Con llamar a esta funcion, se otorga soporte en el OS
+     *   para marcar un bloque de codigo como atomico
+     *
+	 *  @param 		None
+	 *  @return     None
+	 *  @see 		os_enter_critical
+***************************************************************************************************/
+inline void os_exit_critical()  {
+	if (--DAMF.critical_counter <= 0)  {
+		DAMF.critical_counter = 0;
+		__enable_irq();
+	}
+}
+
+/**/
 
 /***********QUEUE************/
 

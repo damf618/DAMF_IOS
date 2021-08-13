@@ -16,6 +16,7 @@
 #include "board.h"
 #include "stdio.h"
 #include "string.h"
+#include "DAMF_OS_IRQ.h"
 
 /************************************************************************************
  * 			Definiciones de Tipo de Variables
@@ -195,6 +196,7 @@ struct DAMF_OS {
 	uint16_t events_index;
 	struct Events OS_Events[MAX_N_EVENTS];
 	bool scheduler_flag;
+	uint8_t critical_counter;
 };
 
 /*==================[definicion de prototipos]=================================*/
