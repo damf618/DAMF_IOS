@@ -22,26 +22,147 @@
 
 struct DAMF_OS DAMF;
 
+/*************************************************************************************************
+	 *  @brief Hook de retorno de tareas
+     *
+     *  @details
+     *   Esta funcion no deberia accederse bajo ningun concepto, porque ninguna tarea del OS
+     *   debe retornar. Si lo hace, es un comportamiento anormal y debe ser tratado.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
+
 /*==================[declaracion prototipos]=================================*/
 
+/*************************************************************************************************
+	 *  @brief Seteo de Error para depuracion.
+     *
+     *  @details
+     *  Funcion interna del sistema operativo, utilizada para el registra los errores. Los errores se
+     *  encuentran registrados en DAMF_OS_Core.h
+     *
+	 *  @param
+	 *  Error_msg Mensaje de Error a registrar.
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void os_set_Error(char* Error_msg);
 
+/*************************************************************************************************
+	 *  @brief Recuperacion del ultimo  Error seteado.
+     *
+     *  @details
+     *  Esta funcion debe extrae el ultimo error registrado en la estructura de control del sistema
+     *  operativo, se debe haber llamado un error previamente para una depuracion correcta.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
 char* os_getError(void);
 
+/*************************************************************************************************
+	 *  @brief Configuracion del stack de tareas
+     *
+     *  @details
+     *  Configuracion de Stacks de las tareas, funciones de retorno y funcion a ejecutar (entrypoint)
+     *
+	 *  @param
+	 *  tarea funcion a ejecutar
+	 *  stack_tarea segmento de memoria asignado a la tarea
+	 *	stack_pointer puntero al bloque de meoria actual dentro del segmento (stack_tarea) asignado.
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_pointer);
 
+/*************************************************************************************************
+	 *  @brief Inclusion de tarea IDLE
+     *
+     *  @details
+     *  Inclusion de tarea IDLE, considerando MAX_TASK se utiliza la siguiente posicion disponible
+     *  para almacenar la tarea IDLE. Si se define EDUCIAA, la tarea IDLE utiliza el LED0 como
+     *  Heartbeat.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void os_Include_Idle_Task();
 
+/*************************************************************************************************
+	 *  @brief Organizacion de tareas por prioridad
+     *
+     *  @details
+     *  El scheduler requiere que las tareas esten organizadas de mayor a menor segun la priordad.
+     *  El sistema NO soporta el cambio de prioridades en ejecucion.
+     *
+	 *  @param
+	 *  order_tasks Elemento para almacenar las tareas ordenadas por prioridad.
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void sched_fix(uint8_t* order_tasks);
 
+/*************************************************************************************************
+	 *  @brief Lanzamiento de Handler de eventos de APIs
+     *
+     *  @details
+     *  Cada API genera un tipo de evento,que puede modificar el orden del scheduler. El sistema
+     *  toma un evento de la cola y lo atiende.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void event_dispatcher();
 
+/*************************************************************************************************
+	 *  @brief scheduler de tareas
+	 *
+     *  @details
+     *  El sistema operativa se basa en esta funcion para determinar que tarea debe ser ejecutada,
+     *  teniendo en cuenta:
+     *     - Estado: READY, BLOCKED, RUNNING.
+     *     - Prioridad: 0,1,2,3. Siendo 0 el MAX y 3 el valor MIN.
+     *     - Round_Robin: En caso de tener tareas de una misma prioridad, se ejecutaran de forma
+     *     simultanea.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
 static bool scheduler();
 
+/*************************************************************************************************
+	 *  @brief Handler periodico a 1ms
+     *
+     *  @details
+     *  El sistema se basa en interrupciones cada 1ms para gestionar y controlar los eventos del OS.
+     *  Esta funcion se encarga de orquestar el control y analisis del OS.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void SysTick_Handler(void);
 
+/*************************************************************************************************
+	 *  @brief Cambio de Contexto
+     *
+     *  @details
+     *  Esta funcion se utiliza durante la insterrupcion PendSV, dentro de una seccion critica.
+     *  La funcion toma los stack pointers de las taraeas y los carga en el sack del MSP para
+     *  realizar un cambio de contexto "inadvertido" por el CPU.
+     *
+	 *  @param
+	 *  sp_actual	stack pointer de la tarea en ejecucion actual.
+	 *
+	 *  @return none.
+***************************************************************************************************/
 uint32_t getContextoSiguiente(uint32_t sp_actual);
-
 
 /*==================[definicion de hooks debiles]=================================*/
 
@@ -109,10 +230,18 @@ void __attribute__((weak)) errorHook(void *caller)  {
 	while(1);
 }
 
-/*
- *
- *
- * */
+/*************************************************************************************************
+	 *  @brief Tarea Idle
+     *
+     *  @details
+     *	Tarea a ejecutar cuando todas las tareas definidas por el usuario se encuentran en estado
+     *	BLOCKED. El sistema operativo incluye la posibilidad de utilizar un Heartbeat en LED0 al
+     *	definir EDUCIAA previo a la inclusion de DAMF_OS_Core.h
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void __attribute__((weak)) Idle_Task(void)  {
 
 #ifdef EDUCIAA
@@ -156,6 +285,17 @@ void os_yield()
 }
 
 //
+
+/*************************************************************************************************
+	 *  @brief Blockeo Manual de Tareas Tareas el DAMF_OS.
+     *
+     *  @details
+     *  Utilizada en su mayoria para DEBUG del OS, hace el bloqueo de la tarea actualmente en
+     *  ejecucion.
+     *
+	 *  @param 		None.
+	 *  @return     None.
+***************************************************************************************************/
 void os_block()
 {
 	DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
@@ -163,6 +303,8 @@ void os_block()
 }
 
 //
+
+// Include_Task
 void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
 
 	if(DAMF.task_counter < MAX_TASKS)
@@ -226,13 +368,15 @@ void os_Init(void)  {
 	DAMF.scheduler_flag = FALSE;
 	DAMF.critical_counter = CLEAN;
 
-	for(uint8_t i = 0;i<CANT_PRIO;i++)
+	for(uint8_t i=0 ;i<MAX_PRIO ;i++)
 	{
+		DAMF.OS_Task_Arrange[i].n_task_counter = 0;
 		for(uint8_t k = 0;k<MAX_TASKS;k++)
 		{
-			DAMF.OS_Tasks_Prio[i][k] = TASK_ROUND_ROB;
+				DAMF.OS_Task_Arrange[i].OS_Tasks_Prio[k] = TASK_ROUND_ROB;
 		}
 	}
+
 }
 
 /*************************************************************************************************
@@ -253,7 +397,21 @@ void os_Run(void)
 	sched_fix(DAMF.OS_Prior);
 }
 
+/*************************************************************************************************
+	 *  @brief Marca el inicio de una seccion como seccion critica.
+     *
+     *  @details
+     *   Las secciones criticas son aquellas que deben ejecutar operaciones atomicas, es decir que
+     *   no pueden ser interrumpidas. Con llamar a esta funcion, se otorga soporte en el OS
+     *   para marcar un bloque de codigo como atomico
+     *
+	 *  @param 		None
+	 *  @return     None
+	 *  @see 		os_enter_critical
+***************************************************************************************************/
 /***************CRITICAL********************/
+
+//
 static inline void os_enter_critical()  {
 	__disable_irq();
 	DAMF.critical_counter++;
@@ -278,7 +436,22 @@ static inline void os_exit_critical()  {
 	}
 }
 
-/***********QUEUE************/
+/*************************************************************************************************
+	 *  @brief API de Creacion de Colas
+     *
+     *  @details
+     *  El OS incluye un manejo de Colas para la transmision de informacion entre tareas.
+     *
+	 *  @param
+	 *  queue_p    puntero a cola a configurar.
+	 *  n_data     maximo numeros de datos a guardar en la cola
+	 *  size_data  tamano en Bytes del tiupo de dato a guardar.
+	 *
+	 *
+	 *  @return none.
+***************************************************************************************************/
+/***************QUEUE***********************/
+
 //
 void os_Queue_Create(queue_event_t * queue_p, uint8_t n_data, uint32_t size_data)
 {
@@ -315,6 +488,19 @@ void os_Queue_Create(queue_event_t * queue_p, uint8_t n_data, uint32_t size_data
 }
 
 //
+
+//TODO CHECK Casos extremos
+/*************************************************************************************************
+	 *  @brief Handler de los Eventos Asociados a las Colas del OS
+     *
+     *  @details
+     *  Pueden generarse eventos en la cola como por ejemplo: carga en cola FULL o vaciado en cola vacia.
+     *  Estas situaciones son controladas por el Event_Habdler.
+     *
+	 *  @param none
+	 *
+	 *  @return none.
+***************************************************************************************************/
 bool queue_handler(void * prmtr)
 {
 	bool task_finished = FALSE;
@@ -331,6 +517,20 @@ bool queue_handler(void * prmtr)
 }
 
 //
+
+/*************************************************************************************************
+	 *  @brief Creacion de evento de colas
+     *
+     *  @details
+     *
+     *
+     *
+	 *  @param
+	 *  queue_p puntero a la cola asociada al evento.
+	 *  running_task tarea asociada al evento de cola.
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void os_queue_event_t(queue_event_t * queue_p, uint8_t running_task)
 {
 	queue_p->origin_task = running_task;
@@ -341,6 +541,21 @@ void os_queue_event_t(queue_event_t * queue_p, uint8_t running_task)
 }
 
 //
+
+/*************************************************************************************************
+	 *  @brief Carga de datos en cola
+     *
+     *  @details
+     *  Carga de datos en la cola indicada como parametro, en caso de que la cola no disponga espacio
+     *  se procedera a bloquear la tarea y generar un evento de colas. El evento sera verificado
+     *  durante los SysTick Hanlder para verificar posibles cambios en el scheduler.
+     *
+	 *  @param
+	 *  queue_p puntero a la cola que se desea insertar el dato.
+	 *  data  data a cargar en la cola
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void os_push_queue(queue_event_t * queue_p, void* data)
 {
 
@@ -360,6 +575,22 @@ void os_push_queue(queue_event_t * queue_p, void* data)
 }
 
 //
+
+/*************************************************************************************************
+	 *  @brief EXtraccion de datos en cola
+     *
+     *  @details
+     *  Retiro de datos en la cola indicada como parametro, en caso de que la cola no disponga
+     *   de datos almacenados, se procedera a bloquear la tarea y generar un evento de colas. El
+     *  evento sera verificado durante los SysTick Hanlder para verificar posibles cambios en el
+     *  scheduler.
+     *
+	 *  @param
+	 *  queue_p puntero a la cola que se desea insertar el dato.
+	 *  vari  variable donde se procedera a cargar el dato proveniente de la cola
+	 *
+	 *  @return none.
+***************************************************************************************************/
 void os_pull_queue(queue_event_t * queue_p, void* vari)
 {
 	//TODO Validar espacio lleno
@@ -377,7 +608,8 @@ void os_pull_queue(queue_event_t * queue_p, void* vari)
 	queue_p->queue_counter--;
 }
 
-/***********DELAY************/
+/**************DELAY************************/
+
 //
 bool delay_handler(void* prmtr)
 {
@@ -416,7 +648,8 @@ void os_delay( const uint32_t time_delay )
 	__WFI();
 }
 
-/********SEMAPHORE***********/
+/**************SEMAPHORE*******************/
+
 //
 bool sema_handler( void* prmtr )
 {
@@ -512,82 +745,37 @@ void os_Sema_Free(semaphore_event_t * pointer)
 /*
  * Esta seccion contiene las funciones internas que mantienen el sistema operativo.
  */
-/*************************************************************************************************
-	 *  @brief Asignacion de mensaje de error.
-     *
-     *  @details
-     *   Permite guardar el error dentro de la estructura para su posterior indicacion al usuario.
-     *
-	 *  @param Error_msg   Mensaje que describe el error detectado.
-	 *  @return     None.
-***************************************************************************************************/
+
+// Gardado de error
 void os_set_Error(char* Error_msg)
 {
 	memcpy(DAMF.error_tag,Error_msg,strlen(Error_msg)+1);
 	errorHook(os_InitTarea);
 }
 
-/*************************************************************************************************
-	 *  @brief Retorno de mensaje de error.
-     *
-     *  @details
-     *  Permite obtener el último el error cargado por el OS.
-     *
-	 *  @return  Error_msg   Mensaje que describe el error detectado.
-***************************************************************************************************/
+// Obtener el ultimo error registrado
 char* os_getError(void)
 {
 	return DAMF.error_tag;
 }
 
-/*************************************************************************************************
-	 *  @brief Inicializa las tareas que correran en el OS.
-     *
-     *  @details
-     *   Inicializa una tarea para que pueda correr en el OS implementado.
-     *   Es necesario llamar a esta funcion para cada tarea antes que inicie
-     *   el OS.
-     *
-	 *  @param *tarea			Puntero a la tarea que se desea inicializar.
-	 *  @param *stack			Puntero al espacio reservado como stack para la tarea.
-	 *  @param *stack_pointer   Puntero a la variable que almacena el stack pointer de la tarea.
-	 *  @return     None.
-***************************************************************************************************/
+// Inicializacion de Tarea
 void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_pointer)  {
-
-	/*
-		 * Al principio se efectua un pequeño checkeo para determinar si llegamos a la cantidad maxima de
-		 * tareas que pueden definirse para este OS. En el caso de que se traten de inicializar mas tareas
-		 * que el numero maximo soportado, se guarda un codigo de error en la estructura de control del OS
-		 * y la tarea no se inicializa.
-		 */
 
 	stack_tarea[STACK_SIZE/4 - XPSR] = INIT_XPSR;				//necesario para bit thumb
 	stack_tarea[STACK_SIZE/4 - PC_REG] = (uint32_t)tarea;		//direccion de la tarea (ENTRY_POINT)
 
 	stack_tarea[STACK_SIZE/4 - LR] = (uint32_t)returnHook;
 
-
-	/**
-	 * El valor previo de LR (que es EXEC_RETURN en este caso) es necesario dado que
-	 * en esta implementacion, se llama a una funcion desde dentro del handler de PendSV
-	 * con lo que el valor de LR se modifica por la direccion de retorno para cuando
-	 * se termina de ejecutar getContextoSiguiente
-	 */
 	stack_tarea[STACK_SIZE/4 - LR_PREV_VALUE] = EXEC_RETURN;
 
-	/**
-	 * Notar que ahora, al agregar un registro mas al stack, la definicion de FULL_STACKING_SIZE
-	 * paso de ser 16 a ser 17
-	 */
-
 	*stack_pointer = (uint32_t) (stack_tarea + STACK_SIZE/4 - FULL_STACKING_SIZE);
-
 }
 
 //
+
+// Inclusion de tarea Idle
 void os_Include_Idle_Task() {
-	//struct Tasks tempTask;
 
 	if(DAMF.task_counter <= MAX_TASKS)
 	{
@@ -596,7 +784,6 @@ void os_Include_Idle_Task() {
 		DAMF.OS_Tasks[IDLE_TASK_INDEX].id = IDLE_TASK_INDEX;
 		memset(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,0,MAX_TAG_LENGTH);
 		memcpy(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,IDLE_TASK_TAG,strlen(IDLE_TASK_TAG)+1);
-		//CHECK TODO
 		os_InitTarea((void*)DAMF.OS_Tasks[IDLE_TASK_INDEX].function,DAMF.OS_Tasks[IDLE_TASK_INDEX].stack, &DAMF.OS_Tasks[IDLE_TASK_INDEX].stack_pointer);
 	}
 	else
@@ -606,6 +793,8 @@ void os_Include_Idle_Task() {
 }
 
 //
+
+// Organizacion de tareas por prioridad
 void sched_fix(uint8_t* order_tasks)
 {
 	int8_t  tasks_prio [MAX_TASKS];
@@ -614,11 +803,6 @@ void sched_fix(uint8_t* order_tasks)
 	uint8_t max_index = 0;
 	uint8_t actual_index = DAMF.task_counter;
 	uint8_t counter = 0;
-
-	uint8_t counter0 = 0;
-	uint8_t counter1 = 0;
-	uint8_t counter2 = 0;
-	uint8_t counter3 = 0;
 
 	//create a vector of the tasks priorities
 	for(uint8_t i=0;i<MAX_TASKS;i++)
@@ -631,33 +815,40 @@ void sched_fix(uint8_t* order_tasks)
 		{
 			tasks_prio[i]=-1;
 		}
-
+		if(tasks_prio[i]>=0)
+		{
+			DAMF.OS_Task_Arrange[tasks_prio[i]].OS_Tasks_Prio[DAMF.OS_Task_Arrange[tasks_prio[i]].n_task_counter]=i;
+			DAMF.OS_Task_Arrange[tasks_prio[i]].n_task_counter++;
+		}
+/*
 		switch(tasks_prio[i])
 		{
 			case 0:
-				DAMF.OS_Tasks_Prio[0][counter0]=i;
-				counter0++;
+				DAMF.OS_Task_Arrange[0].OS_Tasks_Prio[DAMF.OS_Task_Arrange[0].task_counter]=i;
+				//DAMF.OS_Tasks_Prio[0][counter0]=i;
+				DAMF.OS_Task_Arrange[0].task_counter++;
+				//counter0++;
 				break;
 
 			case 1:
-				DAMF.OS_Tasks_Prio[1][counter1]=i;
-				counter1++;
+				DAMF.OS_Task_Arrange[1].OS_Tasks_Prio[DAMF.OS_Task_Arrange[1].task_counter]=i;
+				DAMF.OS_Task_Arrange[1].task_counter++;
 				break;
 
 			case 2:
-				DAMF.OS_Tasks_Prio[2][counter2]=i;
-				counter2++;
+				DAMF.OS_Task_Arrange[2].OS_Tasks_Prio[DAMF.OS_Task_Arrange[2].task_counter]=i;
+				DAMF.OS_Task_Arrange[2].task_counter++;
 				break;
 
 			case 3:
-				DAMF.OS_Tasks_Prio[3][counter3]=i;
-				counter3++;
+				DAMF.OS_Task_Arrange[3].OS_Tasks_Prio[DAMF.OS_Task_Arrange[3].task_counter]=i;
+				DAMF.OS_Task_Arrange[3].task_counter++;
 				break;
 
 			default:
 				break;
 		}
-
+*/
 	}
 
 
@@ -683,6 +874,8 @@ void sched_fix(uint8_t* order_tasks)
 }
 
 //
+
+// Funcion de lanzamiento de eventos
 void event_dispatcher()
 {
 	bool finished_event = FALSE;
@@ -707,16 +900,7 @@ void event_dispatcher()
 	}
 }
 
-/*************************************************************************************************
-	 *  @brief SysTick Handler.
-     *
-     *  @details
-     *   El handler del Systick no debe estar a la vista del usuario. Dentro se setea como
-     *   pendiente la excepcion PendSV.
-     *
-	 *  @param 		None.
-	 *  @return     None.
-***************************************************************************************************/
+// scheduler del os
 static bool scheduler()  {
 	bool aux = FALSE;
 	//FSM DAMF_OS
@@ -750,16 +934,7 @@ static bool scheduler()  {
 	return aux;
 }
 
-/*************************************************************************************************
-	 *  @brief SysTick Handler.
-     *
-     *  @details
-     *   El handler del Systick no debe estar a la vista del usuario. Dentro se setea como
-     *   pendiente la excepcion PendSV.
-     *
-	 *  @param 		None.
-	 *  @return     None.
-***************************************************************************************************/
+// handler del evento systick
 void SysTick_Handler(void)  {
 
 	bool sche = FALSE;
@@ -799,18 +974,7 @@ void SysTick_Handler(void)  {
 	}
 }
 
-/*************************************************************************************************
-	 *  @brief Funcion para determinar el proximo contexto.
-     *
-     *  @details
-     *   Esta funcion en este momento hace las veces de scheduler y tambien obtiene el siguiente
-     *   contexto a ser cargado. El cambio de contexto se ejecuta en el handler de PendSV, dentro
-     *   del cual se llama a esta funcion
-     *
-	 *  @param 		sp_actual	Este valor es una copia del contenido de MSP al momento en
-	 *  			que la funcion es invocada.
-	 *  @return     El valor a cargar en MSP para apuntar al contexto de la tarea siguiente.
-***************************************************************************************************/
+// contexto siguiente
 uint32_t getContextoSiguiente(uint32_t sp_actual)  {
 	uint32_t sp_siguiente;
 

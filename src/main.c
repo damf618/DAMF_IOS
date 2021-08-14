@@ -107,7 +107,7 @@ void woaow(void)
 		Board_LED_Toggle(1);
 		os_delay(200);//DELAY ms
 		Board_LED_Toggle(2);
-		os_delay(200);//DELAY ms
+		os_delay(800);//DELAY ms
 	}
 }
 

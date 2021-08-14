@@ -162,13 +162,12 @@ typedef struct delay_events
 	uint32_t origin_task;
 }delay_event_t;
 
-/*
 typedef struct priority_struct
 {
 	uint8_t OS_Tasks_Prio[MAX_TASKS];
-	uint8_t task_counter;
+	uint8_t n_task_counter;
 }priority_t;
-*/
+
 
 struct Tasks {
 	uint32_t stack_pointer;
@@ -205,8 +204,8 @@ struct DAMF_OS {
 	struct Events OS_Events[MAX_N_EVENTS];
 	bool scheduler_flag;
 	uint8_t critical_counter;
-	uint8_t OS_Tasks_Prio[CANT_PRIO][MAX_TASKS];
-	//priority_t OS_Task_Arrange[CANT_PRIO];
+	//uint8_t OS_Tasks_Prio[CANT_PRIO][MAX_TASKS];
+	priority_t OS_Task_Arrange[CANT_PRIO];
 };
 
 /*==================[definicion de prototipos]=================================*/
