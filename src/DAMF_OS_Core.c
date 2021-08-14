@@ -15,18 +15,32 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+//#define EDUCIAA		//Implementar Heartbeat en IDLE_TASK
+
 #include "DAMF_OS_FSM.h"
 
 struct DAMF_OS DAMF;
 
-/*==================[definicion de prototipos]=================================*/
+/*==================[declaracion prototipos]=================================*/
 
-static void os_InitTarea(void *tarea, uint32_t *stack, uint32_t *stack_pointer);
-static bool scheduler(void);
-static void os_set_Error(char* Error_msg);
+void os_set_Error(char* Error_msg);
 
-/*=============================================================================*/
+char* os_getError(void);
 
+void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_pointer);
+
+void os_Include_Idle_Task();
+
+void sched_fix(uint8_t* order_tasks);
+
+void event_dispatcher();
+
+static bool scheduler();
+
+void SysTick_Handler(void);
+
+uint32_t getContextoSiguiente(uint32_t sp_actual);
 
 
 /*==================[definicion de hooks debiles]=================================*/
@@ -119,6 +133,13 @@ void __attribute__((weak)) Idle_Task(void)  {
 #endif
 }
 
+/*==================[OS_APIS]=================================*/
+
+/*
+ * Esta seccion contiene las funciones que permiten al usuario interactuar con
+ * el sistema operativo.
+ */
+
 /*************************************************************************************************
 	 *  @brief Ceder CPU de Tareas el DAMF_OS.
      *
@@ -141,11 +162,9 @@ void os_block()
 	os_yield();
 }
 
-/*
- * En caos de la prioridad si es menor o mayor del rango maximo MIN_PRIO (1) y MAX_PRIO (5).
- * */
+//
 void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
-	//struct Tasks tempTask;
+
 	if(DAMF.task_counter < MAX_TASKS)
 	{
 		DAMF.OS_Tasks[DAMF.task_counter].function = (uint32_t) tarea;
@@ -170,7 +189,6 @@ void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
 			DAMF.OS_Tasks[DAMF.task_counter].prior = Priority;
 		}
 
-		//CHECK TODO
 		os_InitTarea((void*)DAMF.OS_Tasks[DAMF.task_counter].function,DAMF.OS_Tasks[DAMF.task_counter].stack, &DAMF.OS_Tasks[DAMF.task_counter].stack_pointer);
 		DAMF.task_counter ++;
 	}
@@ -178,79 +196,6 @@ void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
 	{
 		os_set_Error(MAX_TASK_MSG);
 	}
-}
-
-/*************************************************************************************************
-	 *  @brief Asignacion de mensaje de error.
-     *
-     *  @details
-     *   Permite guardar el error dentro de la estructura para su posterior indicacion al usuario.
-     *
-	 *  @param Error_msg   Mensaje que describe el error detectado.
-	 *  @return     None.
-***************************************************************************************************/
-static void os_set_Error(char* Error_msg)
-{
-	memcpy(DAMF.error_tag,Error_msg,strlen(Error_msg)+1);
-	errorHook(os_InitTarea);
-}
-
-/*************************************************************************************************
-	 *  @brief Retorno de mensaje de error.
-     *
-     *  @details
-     *  Permite obtener el último el error cargado por el OS.
-     *
-	 *  @return  Error_msg   Mensaje que describe el error detectado.
-***************************************************************************************************/
-char* os_getError(void)
-{
-	return DAMF.error_tag;
-}
-
-/*************************************************************************************************
-	 *  @brief Inicializa las tareas que correran en el OS.
-     *
-     *  @details
-     *   Inicializa una tarea para que pueda correr en el OS implementado.
-     *   Es necesario llamar a esta funcion para cada tarea antes que inicie
-     *   el OS.
-     *
-	 *  @param *tarea			Puntero a la tarea que se desea inicializar.
-	 *  @param *stack			Puntero al espacio reservado como stack para la tarea.
-	 *  @param *stack_pointer   Puntero a la variable que almacena el stack pointer de la tarea.
-	 *  @return     None.
-***************************************************************************************************/
-static void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_pointer)  {
-
-	/*
-		 * Al principio se efectua un pequeño checkeo para determinar si llegamos a la cantidad maxima de
-		 * tareas que pueden definirse para este OS. En el caso de que se traten de inicializar mas tareas
-		 * que el numero maximo soportado, se guarda un codigo de error en la estructura de control del OS
-		 * y la tarea no se inicializa.
-		 */
-
-	stack_tarea[STACK_SIZE/4 - XPSR] = INIT_XPSR;				//necesario para bit thumb
-	stack_tarea[STACK_SIZE/4 - PC_REG] = (uint32_t)tarea;		//direccion de la tarea (ENTRY_POINT)
-
-	stack_tarea[STACK_SIZE/4 - LR] = (uint32_t)returnHook;
-
-
-	/**
-	 * El valor previo de LR (que es EXEC_RETURN en este caso) es necesario dado que
-	 * en esta implementacion, se llama a una funcion desde dentro del handler de PendSV
-	 * con lo que el valor de LR se modifica por la direccion de retorno para cuando
-	 * se termina de ejecutar getContextoSiguiente
-	 */
-	stack_tarea[STACK_SIZE/4 - LR_PREV_VALUE] = EXEC_RETURN;
-
-	/**
-	 * Notar que ahora, al agregar un registro mas al stack, la definicion de FULL_STACKING_SIZE
-	 * paso de ser 16 a ser 17
-	 */
-
-	*stack_pointer = (uint32_t) (stack_tarea + STACK_SIZE/4 - FULL_STACKING_SIZE);
-
 }
 
 /*************************************************************************************************
@@ -290,33 +235,29 @@ void os_Init(void)  {
 	}
 }
 
-void os_Include_Idle_Task() {
-	//struct Tasks tempTask;
-
-	if(DAMF.task_counter <= MAX_TASKS)
-	{
-		DAMF.OS_Tasks[IDLE_TASK_INDEX].function = (uint32_t) Idle_Task;
-		DAMF.OS_Tasks[IDLE_TASK_INDEX].state = READY;
-		DAMF.OS_Tasks[IDLE_TASK_INDEX].id = IDLE_TASK_INDEX;
-		memset(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,0,MAX_TAG_LENGTH);
-		memcpy(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,IDLE_TASK_TAG,strlen(IDLE_TASK_TAG)+1);
-		//CHECK TODO
-		os_InitTarea((void*)DAMF.OS_Tasks[IDLE_TASK_INDEX].function,DAMF.OS_Tasks[IDLE_TASK_INDEX].stack, &DAMF.OS_Tasks[IDLE_TASK_INDEX].stack_pointer);
-	}
-	else
-	{
-		os_set_Error(MAX_TASK_MSG);
-	}
+/*************************************************************************************************
+	 *  @brief Arranque del OS.
+     *
+     *  @details
+     *  Debe ser llamada luego del OS_Init y posterior a la creación de todas las tareas generadas por el ussuario.
+     *  Crea la Tarea IDLE para gestionar las tareas y funciones del OS a partir de la ùltima tarea creada.
+     *
+	 *  @param 		None.
+	 *  @return     None.
+***************************************************************************************************/
+void os_Run(void)
+{
+	os_Include_Idle_Task();
+	//TODO Validar
+	//Al iniciar ajustar el scheduler
+	sched_fix(DAMF.OS_Prior);
 }
 
-
 /***************CRITICAL********************/
-
-inline void os_enter_critical()  {
+static inline void os_enter_critical()  {
 	__disable_irq();
 	DAMF.critical_counter++;
 }
-
 
 /*************************************************************************************************
 	 *  @brief Marca el final de una seccion como seccion critica.
@@ -330,18 +271,15 @@ inline void os_enter_critical()  {
 	 *  @return     None
 	 *  @see 		os_enter_critical
 ***************************************************************************************************/
-inline void os_exit_critical()  {
+static inline void os_exit_critical()  {
 	if (--DAMF.critical_counter <= 0)  {
 		DAMF.critical_counter = 0;
 		__enable_irq();
 	}
 }
 
-/**/
-
 /***********QUEUE************/
-
-//TODO VALIDAR
+//
 void os_Queue_Create(queue_event_t * queue_p, uint8_t n_data, uint32_t size_data)
 {
 	uint8_t queue_lenght = 0;
@@ -439,6 +377,234 @@ void os_pull_queue(queue_event_t * queue_p, void* vari)
 	queue_p->queue_counter--;
 }
 
+/***********DELAY************/
+//
+bool delay_handler(void* prmtr)
+{
+	bool task_finished = FALSE;
+
+	delay_event_t* event_data = (delay_event_t *)prmtr;
+
+	if(DAMF.os_tick_counter >= event_data->time_delay)
+	{
+		DAMF.OS_Tasks[event_data->origin_task].state = READY;
+		DAMF.scheduler_flag = TRUE;
+		task_finished = TRUE;
+	}
+	return task_finished;
+}
+
+//
+void os_delay_event(const uint32_t time_delay, uint8_t running_task)
+{
+	DAMF.OS_Tasks[running_task].delay_event.origin_task = running_task;
+	DAMF.OS_Tasks[running_task].delay_event.time_delay  = time_delay + DAMF.os_tick_counter;
+
+
+	DAMF.OS_Events[DAMF.events_index].prmtr =    (void *) &DAMF.OS_Tasks[running_task].delay_event;
+	DAMF.OS_Events[DAMF.events_index].event_handler = (void*) delay_handler;
+	DAMF.events_index ++;
+}
+
+//
+void os_delay( const uint32_t time_delay )
+{
+	// Bloqueo de tarea actual
+	DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
+	// Creacion de evento a validar posteriormente
+	os_delay_event(time_delay,DAMF.running_task);
+	__WFI();
+}
+
+/********SEMAPHORE***********/
+//
+bool sema_handler( void* prmtr )
+{
+	semaphore_event_t* sema = (semaphore_event_t*) prmtr;
+
+	if(sema->Sema_counter >= sema->Total_counter)
+	{
+		DAMF.OS_Tasks[sema->origin_task].state = BLOCKED;
+	}
+	else
+	{
+		DAMF.OS_Tasks[sema->origin_task].state = READY;
+	}
+
+	DAMF.scheduler_flag = TRUE;
+
+	/*
+	DAMF.OS_Events[DAMF.events_index+PREV].prmtr = DAMF.OS_Events[DAMF.events_index].prmtr;
+	DAMF.OS_Events[DAMF.events_index+PREV].event_handler = DAMF.OS_Events[DAMF.events_index].event_handler;
+	DAMF.events_index--;
+	*/
+
+	return TRUE;
+}
+
+//
+void os_Semaphore_Create(semaphore_event_t * pointer, uint8_t N_config)
+{
+	//TODO VALIDA CREACION
+	uint8_t config_n = CLEAN;
+
+	if(N_config < MIN_SEMA)
+	{
+		config_n = MIN_SEMA;
+	}
+	else if(N_config > MAX_SEMA)
+	{
+		config_n = MAX_SEMA;
+	}
+	else
+	{
+		config_n = N_config;
+	}
+	pointer[0].Total_counter = config_n;
+	pointer[0].Sema_counter = config_n;
+
+	//TODO Set ERROR else max numero de semaphores alcanzado
+}
+
+//
+void os_semaphore_event(semaphore_event_t * pointer)
+{
+	DAMF.OS_Events[DAMF.events_index].prmtr =    (void *) pointer;
+	DAMF.OS_Events[DAMF.events_index].event_handler = (void*) sema_handler;
+	DAMF.events_index ++;
+}
+
+//
+void os_Sema_Take(semaphore_event_t * pointer)
+{
+	semaphore_event_t* sema = pointer;
+
+	if(sema->Sema_counter < sema->Total_counter)
+	{
+		sema->Sema_counter++;
+	}
+	else
+	{
+		sema->origin_task = DAMF.running_task;
+		//Si se ha alcanzado el max numero de Takes, genero un evento Semaphore
+		os_semaphore_event(pointer);
+		__WFI();
+	}
+}
+
+//
+void os_Sema_Free(semaphore_event_t * pointer)
+{
+	semaphore_event_t* sema = pointer;
+
+	if(sema->Sema_counter > CLEAN)
+	{
+		sema->Sema_counter--;
+		/*Si libero un semaforo, puede que se desbloquee alguna tarea, por lo
+		que se genera un evento Semaphore*/
+		os_semaphore_event(sema);
+		__WFI();
+	}
+}
+
+/*==================[OS_INTERNAL_APIS]=================================*/
+
+/*
+ * Esta seccion contiene las funciones internas que mantienen el sistema operativo.
+ */
+/*************************************************************************************************
+	 *  @brief Asignacion de mensaje de error.
+     *
+     *  @details
+     *   Permite guardar el error dentro de la estructura para su posterior indicacion al usuario.
+     *
+	 *  @param Error_msg   Mensaje que describe el error detectado.
+	 *  @return     None.
+***************************************************************************************************/
+void os_set_Error(char* Error_msg)
+{
+	memcpy(DAMF.error_tag,Error_msg,strlen(Error_msg)+1);
+	errorHook(os_InitTarea);
+}
+
+/*************************************************************************************************
+	 *  @brief Retorno de mensaje de error.
+     *
+     *  @details
+     *  Permite obtener el último el error cargado por el OS.
+     *
+	 *  @return  Error_msg   Mensaje que describe el error detectado.
+***************************************************************************************************/
+char* os_getError(void)
+{
+	return DAMF.error_tag;
+}
+
+/*************************************************************************************************
+	 *  @brief Inicializa las tareas que correran en el OS.
+     *
+     *  @details
+     *   Inicializa una tarea para que pueda correr en el OS implementado.
+     *   Es necesario llamar a esta funcion para cada tarea antes que inicie
+     *   el OS.
+     *
+	 *  @param *tarea			Puntero a la tarea que se desea inicializar.
+	 *  @param *stack			Puntero al espacio reservado como stack para la tarea.
+	 *  @param *stack_pointer   Puntero a la variable que almacena el stack pointer de la tarea.
+	 *  @return     None.
+***************************************************************************************************/
+void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_pointer)  {
+
+	/*
+		 * Al principio se efectua un pequeño checkeo para determinar si llegamos a la cantidad maxima de
+		 * tareas que pueden definirse para este OS. En el caso de que se traten de inicializar mas tareas
+		 * que el numero maximo soportado, se guarda un codigo de error en la estructura de control del OS
+		 * y la tarea no se inicializa.
+		 */
+
+	stack_tarea[STACK_SIZE/4 - XPSR] = INIT_XPSR;				//necesario para bit thumb
+	stack_tarea[STACK_SIZE/4 - PC_REG] = (uint32_t)tarea;		//direccion de la tarea (ENTRY_POINT)
+
+	stack_tarea[STACK_SIZE/4 - LR] = (uint32_t)returnHook;
+
+
+	/**
+	 * El valor previo de LR (que es EXEC_RETURN en este caso) es necesario dado que
+	 * en esta implementacion, se llama a una funcion desde dentro del handler de PendSV
+	 * con lo que el valor de LR se modifica por la direccion de retorno para cuando
+	 * se termina de ejecutar getContextoSiguiente
+	 */
+	stack_tarea[STACK_SIZE/4 - LR_PREV_VALUE] = EXEC_RETURN;
+
+	/**
+	 * Notar que ahora, al agregar un registro mas al stack, la definicion de FULL_STACKING_SIZE
+	 * paso de ser 16 a ser 17
+	 */
+
+	*stack_pointer = (uint32_t) (stack_tarea + STACK_SIZE/4 - FULL_STACKING_SIZE);
+
+}
+
+//
+void os_Include_Idle_Task() {
+	//struct Tasks tempTask;
+
+	if(DAMF.task_counter <= MAX_TASKS)
+	{
+		DAMF.OS_Tasks[IDLE_TASK_INDEX].function = (uint32_t) Idle_Task;
+		DAMF.OS_Tasks[IDLE_TASK_INDEX].state = READY;
+		DAMF.OS_Tasks[IDLE_TASK_INDEX].id = IDLE_TASK_INDEX;
+		memset(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,0,MAX_TAG_LENGTH);
+		memcpy(DAMF.OS_Tasks[IDLE_TASK_INDEX].tag,IDLE_TASK_TAG,strlen(IDLE_TASK_TAG)+1);
+		//CHECK TODO
+		os_InitTarea((void*)DAMF.OS_Tasks[IDLE_TASK_INDEX].function,DAMF.OS_Tasks[IDLE_TASK_INDEX].stack, &DAMF.OS_Tasks[IDLE_TASK_INDEX].stack_pointer);
+	}
+	else
+	{
+		os_set_Error(MAX_TASK_MSG);
+	}
+}
+
 //
 void sched_fix(uint8_t* order_tasks)
 {
@@ -495,7 +661,7 @@ void sched_fix(uint8_t* order_tasks)
 	}
 
 
-	while(actual_index-1>counter)
+	while(actual_index-1>=counter)
 	{
 		//Search for the index of the greater priority value
 		for(uint8_t i=0;i<actual_index;i++)
@@ -514,44 +680,6 @@ void sched_fix(uint8_t* order_tasks)
 		counter++;
 	}
 	memcpy(order_tasks,tasks_fix,sizeof(tasks_fix));
-}
-
-//
-bool delay_handler(void* prmtr)
-{
-	bool task_finished = FALSE;
-
-	delay_event_t* event_data = (delay_event_t *)prmtr;
-
-	if(DAMF.os_tick_counter >= event_data->time_delay)
-	{
-		DAMF.OS_Tasks[event_data->origin_task].state = READY;
-		DAMF.scheduler_flag = TRUE;
-		task_finished = TRUE;
-	}
-	return task_finished;
-}
-
-//
-void os_delay_event(const uint32_t time_delay, uint8_t running_task)
-{
-	DAMF.OS_Tasks[running_task].delay_event.origin_task = running_task;
-	DAMF.OS_Tasks[running_task].delay_event.time_delay  = time_delay + DAMF.os_tick_counter;
-
-
-	DAMF.OS_Events[DAMF.events_index].prmtr =    (void *) &DAMF.OS_Tasks[running_task].delay_event;
-	DAMF.OS_Events[DAMF.events_index].event_handler = (void*) delay_handler;
-	DAMF.events_index ++;
-}
-
-//
-void os_delay( const uint32_t time_delay )
-{
-	// Bloqueo de tarea actual
-	DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
-	// Creacion de evento a validar posteriormente
-	os_delay_event(time_delay,DAMF.running_task);
-	__WFI();
 }
 
 //
@@ -577,24 +705,6 @@ void event_dispatcher()
 			}
 		}
 	}
-}
-
-/*************************************************************************************************
-	 *  @brief Arranque del OS.
-     *
-     *  @details
-     *  Debe ser llamada luego del OS_Init y posterior a la creación de todas las tareas generadas por el ussuario.
-     *  Crea la Tarea IDLE para gestionar las tareas y funciones del OS a partir de la ùltima tarea creada.
-     *
-	 *  @param 		None.
-	 *  @return     None.
-***************************************************************************************************/
-void os_Run(void)
-{
-	os_Include_Idle_Task();
-	//TODO Validar
-	//Al iniciar ajustar el scheduler
-	sched_fix(DAMF.OS_Prior);
 }
 
 /*************************************************************************************************
@@ -686,96 +796,6 @@ void SysTick_Handler(void)  {
 	 * completed before next instruction is executed
 	 */
 		__DSB();
-	}
-}
-
-//
-bool sema_handler( void* prmtr )
-{
-	semaphore_event_t* sema = (semaphore_event_t*) prmtr;
-
-	if(sema->Sema_counter >= sema->Total_counter)
-	{
-		DAMF.OS_Tasks[sema->origin_task].state = BLOCKED;
-	}
-	else
-	{
-		DAMF.OS_Tasks[sema->origin_task].state = READY;
-	}
-
-	DAMF.scheduler_flag = TRUE;
-
-	/*
-	DAMF.OS_Events[DAMF.events_index+PREV].prmtr = DAMF.OS_Events[DAMF.events_index].prmtr;
-	DAMF.OS_Events[DAMF.events_index+PREV].event_handler = DAMF.OS_Events[DAMF.events_index].event_handler;
-	DAMF.events_index--;
-	*/
-
-	return TRUE;
-}
-
-//
-void os_Semaphore_Create(semaphore_event_t * pointer, uint8_t N_config)
-{
-	//TODO VALIDA CREACION
-	uint8_t config_n = CLEAN;
-
-	if(N_config < MIN_SEMA)
-	{
-		config_n = MIN_SEMA;
-	}
-	else if(N_config > MAX_SEMA)
-	{
-		config_n = MAX_SEMA;
-	}
-	else
-	{
-		config_n = N_config;
-	}
-	pointer[0].Total_counter = config_n;
-	pointer[0].Sema_counter = config_n;
-
-	//TODO Set ERROR else max numero de semaphores alcanzado
-}
-
-//
-void os_semaphore_event(semaphore_event_t * pointer)
-{
-	DAMF.OS_Events[DAMF.events_index].prmtr =    (void *) pointer;
-	DAMF.OS_Events[DAMF.events_index].event_handler = (void*) sema_handler;
-	DAMF.events_index ++;
-}
-
-//
-void os_Sema_Take(semaphore_event_t * pointer)
-{
-	semaphore_event_t* sema = pointer;
-
-	if(sema->Sema_counter < sema->Total_counter)
-	{
-		sema->Sema_counter++;
-	}
-	else
-	{
-		sema->origin_task = DAMF.running_task;
-		//Si se ha alcanzado el max numero de Takes, genero un evento Semaphore
-		os_semaphore_event(pointer);
-		__WFI();
-	}
-}
-
-//
-void os_Sema_Free(semaphore_event_t * pointer)
-{
-	semaphore_event_t* sema = pointer;
-
-	if(sema->Sema_counter > CLEAN)
-	{
-		sema->Sema_counter--;
-		/*Si libero un semaforo, puede que se desbloquee alguna tarea, por lo
-		que se genera un evento Semaphore*/
-		os_semaphore_event(sema);
-		__WFI();
 	}
 }
 

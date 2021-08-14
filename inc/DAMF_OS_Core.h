@@ -8,9 +8,6 @@
 #ifndef ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_
 #define ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_
 
-
-#define EDUCIAA		//Implementar Heartbeat en IDLE_TASK
-
 #include "stdbool.h"
 #include <stdint.h>
 #include "board.h"
@@ -165,6 +162,14 @@ typedef struct delay_events
 	uint32_t origin_task;
 }delay_event_t;
 
+/*
+typedef struct priority_struct
+{
+	uint8_t OS_Tasks_Prio[MAX_TASKS];
+	uint8_t task_counter;
+}priority_t;
+*/
+
 struct Tasks {
 	uint32_t stack_pointer;
 	uint32_t stack[STACK_SIZE/4];
@@ -201,6 +206,7 @@ struct DAMF_OS {
 	bool scheduler_flag;
 	uint8_t critical_counter;
 	uint8_t OS_Tasks_Prio[CANT_PRIO][MAX_TASKS];
+	//priority_t OS_Task_Arrange[CANT_PRIO];
 };
 
 /*==================[definicion de prototipos]=================================*/

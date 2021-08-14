@@ -30,7 +30,6 @@ bool os_fsm_Running(void)
 	bool any_running = FALSE;
 	bool Round_Robin_Reset = FALSE;
 
-	uint8_t next_ready;
 	uint8_t next_ready_prior;
 
 	uint8_t possible_tasks[MAX_TASKS];
@@ -40,7 +39,7 @@ bool os_fsm_Running(void)
 	{
 		if(DAMF.OS_Tasks[DAMF.OS_Prior[index]].state == READY)
 		{
-			next_ready = DAMF.OS_Prior[index];
+			//next_ready = DAMF.OS_Prior[index];
 			next_ready_prior = DAMF.OS_Tasks[DAMF.OS_Prior[index]].prior;
 			any_ready = TRUE;
 			break;
@@ -85,13 +84,6 @@ bool os_fsm_Running(void)
 				}
 			}
 
-			/*
-			if(DAMF.OS_Tasks[DAMF.running_task].state!=BLOCKED)
-			{
-				DAMF.OS_Tasks[DAMF.running_task].state = READY;
-			}
-			DAMF.next_task = next_ready;
-			*/
 			return TRUE;
 		}
 	}

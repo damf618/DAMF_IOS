@@ -29,7 +29,7 @@ void tarea1(void)  {
 	uint16_t h = 0;
 	uint16_t i = 0;
 	uint8_t led_red = 4;
-	uint8_t queue_led = 1;
+	uint8_t queue_led = 4;
 
 	uint32_t dato_pull = 111111;
 
@@ -40,17 +40,21 @@ void tarea1(void)  {
 		dato_pull = 111111;
 
 		os_pull_queue(&Queue1, &dato_pull);
-		os_delay(500);//DELAY ms
+		os_delay(250);//DELAY ms
 		Board_LED_Toggle(led_red);
 		os_Sema_Free(&Sema1);
 		if(dato_pull==55355)
 		{
-			Board_LED_Toggle(queue_led);
-			os_delay(300);//DELAY ms
-			Board_LED_Toggle(queue_led);
+			for(uint8_t i = 0; i<=10 ;i++)
+			{
+				Board_LED_Toggle(queue_led);
+				os_delay(35);//DELAY ms
+				Board_LED_Toggle(queue_led);
+				os_delay(35);//DELAY ms
+			}
 		}
 		os_Sema_Free(&Sema1);
-		os_delay(800);//DELAY ms
+		os_delay(250);//DELAY ms
 		Board_LED_Toggle(led_red);
 		os_pull_queue(&Queue1, &dato_pull);
 		//os_block();
@@ -66,12 +70,12 @@ void tarea2(void)  {
 	{
 		j++;
 		k++;
-		os_delay(100);//DELAY ms
+		os_delay(350);//DELAY ms
 		Board_LED_Toggle(led_gre);
 		os_Sema_Take(&Sema1);
-		os_delay(200);//DELAY ms
+		os_delay(350);//DELAY ms
 		os_Sema_Take(&Sema1);
-		os_delay(100);//DELAY ms
+		os_delay(350);//DELAY ms
 		os_Sema_Take(&Sema1);
 		Board_LED_Toggle(led_gre);
 	}
@@ -96,11 +100,14 @@ void tarea3(void)  {
 
 void woaow(void)
 {
-	for(uint16_t k = 0;k<65000;k++)
+	while(1)
 	{
-		Board_LED_Toggle(3);
-		Board_LED_Toggle(4);
-		Board_LED_Toggle(5);
+		Board_LED_Toggle(0);
+		os_delay(200);//DELAY ms
+		Board_LED_Toggle(1);
+		os_delay(200);//DELAY ms
+		Board_LED_Toggle(2);
+		os_delay(200);//DELAY ms
 	}
 }
 
@@ -121,6 +128,7 @@ int main(void)  {
 	os_Include_Task(&tarea2,"Tarea 2",1);
 	//TODOMAX_TASKS PRIO3=2
 	os_Include_Task(&tarea3,"Tarea 3",1);
+	os_Include_Task(&woaow,"Tarea 4",1);
 
 	os_SetIRQ(PIN_INT0_IRQn,&woaow);
 
