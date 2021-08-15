@@ -7,8 +7,13 @@
 
 #define CANT_IRQ	53
 
+typedef struct Interrupt_event
+{
+	void (*interrupt_function)(void*) ;
+	void * prmtr;
+}interrupt_t;
 
-bool os_SetIRQ(LPC43XX_IRQn_Type irq, void* usr_isr);
+bool os_SetIRQ(LPC43XX_IRQn_Type irq, void* usr_isr, void* usr_isr_prmtr);
 bool os_ClearIRQ(LPC43XX_IRQn_Type irq);
 
 

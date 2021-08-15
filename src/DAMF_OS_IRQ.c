@@ -2,15 +2,15 @@
 #include "../inc/DAMF_OS_IRQ.h"
 
 
-static void* isr_f_pointer[CANT_IRQ];				//vector de punteros a funciones para nuestras interrupciones
-
+static interrupt_t isr_f_pointer[CANT_IRQ];				//vector de punteros a funciones para nuestras interrupciones
+extern struct DAMF_OS DAMF;
 
 /********************************************************************************
  * Debemos pasarle el tipo de interrupcion y la funcion del
  * usuario que desea instalar para atender esa interrupcion.
  * La funcion devuelve TRUE si fue exitosa o FALSE en caso contrario
  *******************************************************************************/
-bool os_SetIRQ(LPC43XX_IRQn_Type irq, void* usr_isr)  {
+bool os_SetIRQ(LPC43XX_IRQn_Type irq, void* usr_isr, void* usr_isr_prmtr)  {
 	bool Ret = FALSE;
 
 	/*
@@ -19,13 +19,14 @@ bool os_SetIRQ(LPC43XX_IRQn_Type irq, void* usr_isr)  {
 	 * en el NVIC
 	 */
 
-	if (isr_f_pointer[irq] == NULL) {
-		isr_f_pointer[irq] = usr_isr;
+	if (isr_f_pointer[irq].interrupt_function == NULL)
+	{
+		isr_f_pointer[irq].interrupt_function = usr_isr;
+		isr_f_pointer[irq].prmtr = usr_isr_prmtr;
 		NVIC_ClearPendingIRQ(irq);
 		NVIC_EnableIRQ(irq);
 		Ret = TRUE;
 	}
-
 	return Ret;
 }
 
@@ -37,8 +38,8 @@ bool os_SetIRQ(LPC43XX_IRQn_Type irq, void* usr_isr)  {
 bool os_ClearIRQ(LPC43XX_IRQn_Type irq)  {
 	bool Ret = FALSE;
 
-	if (isr_f_pointer[irq] != NULL) {
-		isr_f_pointer[irq] = NULL;
+	if (isr_f_pointer[irq].interrupt_function != NULL) {
+		isr_f_pointer[irq].interrupt_function = NULL;
 		NVIC_ClearPendingIRQ(irq);
 		NVIC_DisableIRQ(irq);
 		Ret = TRUE;
@@ -47,8 +48,6 @@ bool os_ClearIRQ(LPC43XX_IRQn_Type irq)  {
 	return Ret;
 }
 
-
-
 /********************************************************************************
  * Esta funcion es la que todas las interrupciones llaman. Se encarga de llamar
  * a la funcion de usuario que haya sido cargada. LAS FUNCIONES DE USUARIO
@@ -56,13 +55,17 @@ bool os_ClearIRQ(LPC43XX_IRQn_Type irq)  {
  * CON LA CARGA DE CODIGO EN ELLAS, MISMAS REGLAS QUE EN BARE METAL
  *******************************************************************************/
 static void os_IRQHandler(LPC43XX_IRQn_Type IRQn)  {
-	void (*funcion_usuario)(void);
+	OS_STATE state_backup;
 
+	state_backup = DAMF.state;
+
+	DAMF.state = IRQ;
 	/*
 	 * Llamamos a la funcion definida por el usuario
 	 */
-	funcion_usuario = isr_f_pointer[IRQn];
-	funcion_usuario();
+	(*isr_f_pointer[IRQn].interrupt_function)(isr_f_pointer[IRQn].prmtr);
+
+	DAMF.state = state_backup;
 
 	/*
 	 * Debemos limpiar la interrupcion que acabamos de atender, sino se entra por siempre

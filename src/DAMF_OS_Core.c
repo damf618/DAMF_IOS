@@ -10,7 +10,6 @@
  *      Author: gonza
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -22,19 +21,10 @@
 
 struct DAMF_OS DAMF;
 
-/*************************************************************************************************
-	 *  @brief Hook de retorno de tareas
-     *
-     *  @details
-     *   Esta funcion no deberia accederse bajo ningun concepto, porque ninguna tarea del OS
-     *   debe retornar. Si lo hace, es un comportamiento anormal y debe ser tratado.
-     *
-	 *  @param none
-	 *
-	 *  @return none.
-***************************************************************************************************/
-
 /*==================[declaracion prototipos]=================================*/
+
+
+void os_Running_Include_Task(void *tarea, const char * tag, const uint8_t Priority);
 
 /*************************************************************************************************
 	 *  @brief Seteo de Error para depuracion.
@@ -258,7 +248,10 @@ void __attribute__((weak)) Idle_Task(void)  {
 		__WFI();
 	}
 #else
+	while(1)
+	{
 	__WFI();
+	}
 #endif
 }
 
@@ -340,6 +333,42 @@ void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority) {
 	}
 }
 
+// Include Task after the call to os_Run
+void os_Running_Include_Task(void *tarea, const char * tag, const uint8_t Priority)
+{
+	if(DAMF.task_counter < MAX_TASKS)
+	{
+		DAMF.OS_Tasks[DAMF.task_counter].function = (uint32_t) tarea;
+		DAMF.OS_Tasks[DAMF.task_counter].state = READY;
+		DAMF.OS_Tasks[DAMF.task_counter].id = DAMF.task_counter;
+		memset(DAMF.OS_Tasks[DAMF.task_counter].tag,0,MAX_TAG_LENGTH);
+		memcpy(DAMF.OS_Tasks[DAMF.task_counter].tag,tag,strlen(tag)+1);
+
+		DAMF.OS_Tasks[DAMF.task_counter].round_robin = FALSE;
+
+		if(Priority<MIN_PRIO)
+		{
+			DAMF.OS_Tasks[DAMF.task_counter].prior = MIN_PRIO;
+		}
+		else if (Priority>MAX_PRIO)
+		{
+			DAMF.OS_Tasks[DAMF.task_counter].prior = MAX_PRIO;
+		}
+		else
+		{
+			DAMF.OS_Tasks[DAMF.task_counter].prior = Priority;
+		}
+
+		os_InitTarea((void*)DAMF.OS_Tasks[DAMF.task_counter].function,DAMF.OS_Tasks[DAMF.task_counter].stack, &DAMF.OS_Tasks[DAMF.task_counter].stack_pointer);
+		DAMF.task_counter ++;
+	}
+	else
+	{
+		os_set_Error(MAX_TASK_MSG);
+	}
+	sched_fix(DAMF.OS_Prior);
+}
+
 /*************************************************************************************************
 	 *  @brief Inicializa el OS.
      *
@@ -368,13 +397,9 @@ void os_Init(void)  {
 	DAMF.scheduler_flag = FALSE;
 	DAMF.critical_counter = CLEAN;
 
-	for(uint8_t i=0 ;i<MAX_PRIO ;i++)
+	for(uint8_t i=0 ;i<MAX_TASKS ;i++)
 	{
-		DAMF.OS_Task_Arrange[i].n_task_counter = 0;
-		for(uint8_t k = 0;k<MAX_TASKS;k++)
-		{
-				DAMF.OS_Task_Arrange[i].OS_Tasks_Prio[k] = TASK_ROUND_ROB;
-		}
+		DAMF.OS_Prior[i]=NO_PRIO;
 	}
 
 }
@@ -487,9 +512,6 @@ void os_Queue_Create(queue_event_t * queue_p, uint8_t n_data, uint32_t size_data
 	*/
 }
 
-//
-
-//TODO CHECK Casos extremos
 /*************************************************************************************************
 	 *  @brief Handler de los Eventos Asociados a las Colas del OS
      *
@@ -516,8 +538,6 @@ bool queue_handler(void * prmtr)
 	return task_finished;
 }
 
-//
-
 /*************************************************************************************************
 	 *  @brief Creacion de evento de colas
      *
@@ -540,8 +560,6 @@ void os_queue_event_t(queue_event_t * queue_p, uint8_t running_task)
 	DAMF.events_index ++;
 }
 
-//
-
 /*************************************************************************************************
 	 *  @brief Carga de datos en cola
      *
@@ -549,6 +567,8 @@ void os_queue_event_t(queue_event_t * queue_p, uint8_t running_task)
      *  Carga de datos en la cola indicada como parametro, en caso de que la cola no disponga espacio
      *  se procedera a bloquear la tarea y generar un evento de colas. El evento sera verificado
      *  durante los SysTick Hanlder para verificar posibles cambios en el scheduler.
+     *
+     *     * En caso de ser utilizada en una IRQ y no tener espacio, se descarta el dato.
      *
 	 *  @param
 	 *  queue_p puntero a la cola que se desea insertar el dato.
@@ -558,23 +578,34 @@ void os_queue_event_t(queue_event_t * queue_p, uint8_t running_task)
 ***************************************************************************************************/
 void os_push_queue(queue_event_t * queue_p, void* data)
 {
+	bool isrq_full = FALSE;
 
-	//TODO Validar espacio libre
 	if(queue_p->queue_counter >= queue_p->n_slots)
 	{
-		DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
-		os_queue_event_t(queue_p, DAMF.running_task);
-		__WFI();
+		if(DAMF.state!=IRQ)
+		{
+			DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
+			os_queue_event_t(queue_p, DAMF.running_task);
+			__WFI();
+		}
+		else
+		{
+			isrq_full = TRUE;
+		}
 	}
 
-	uint32_t offset = queue_p->queue_counter * queue_p->slot_size;
-	uint32_t slot_pointer = (uint32_t) queue_p->queue_array + offset;
+	/*En caso de que nos encontremos en una interrupcion y NO hay
+			espacio simplemente se descarta el dato*/
+	if(!isrq_full)
+	{
+		uint32_t offset = queue_p->queue_counter * queue_p->slot_size;
+		uint32_t slot_pointer = (uint32_t) queue_p->queue_array + offset;
 
-	memcpy((void *)slot_pointer, data, queue_p->slot_size);
-	queue_p->queue_counter++;
+		memcpy((void *)slot_pointer, data, queue_p->slot_size);
+		queue_p->queue_counter++;
+
+	}
 }
-
-//
 
 /*************************************************************************************************
 	 *  @brief EXtraccion de datos en cola
@@ -593,19 +624,25 @@ void os_push_queue(queue_event_t * queue_p, void* data)
 ***************************************************************************************************/
 void os_pull_queue(queue_event_t * queue_p, void* vari)
 {
-	//TODO Validar espacio lleno
-	if(queue_p->queue_counter <= 0)
+	if(DAMF.state!=IRQ)
 	{
-		DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
-		os_queue_event_t(queue_p, DAMF.running_task);
-		__WFI();
+		//TODO Validar espacio lleno
+		if(queue_p->queue_counter <= 0)
+		{
+			DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
+			os_queue_event_t(queue_p, DAMF.running_task);
+			__WFI();
+		}
+
+		uint32_t offset = (queue_p->queue_counter+PREV) * queue_p->slot_size;
+		uint32_t slot_pointer = (uint32_t) queue_p->queue_array + offset;
+
+		memcpy(vari, (void *)slot_pointer, queue_p->slot_size);
+		queue_p->queue_counter--;
 	}
-
-	uint32_t offset = (queue_p->queue_counter+PREV) * queue_p->slot_size;
-	uint32_t slot_pointer = (uint32_t) queue_p->queue_array + offset;
-
-	memcpy(vari, (void *)slot_pointer, queue_p->slot_size);
-	queue_p->queue_counter--;
+	/*En caso de que nos encontremos en una interrupcion NO puedo detener al ejecucion
+	 * por esperar un dato de la cola
+	 */
 }
 
 /**************DELAY************************/
@@ -641,11 +678,15 @@ void os_delay_event(const uint32_t time_delay, uint8_t running_task)
 //
 void os_delay( const uint32_t time_delay )
 {
-	// Bloqueo de tarea actual
-	DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
-	// Creacion de evento a validar posteriormente
-	os_delay_event(time_delay,DAMF.running_task);
-	__WFI();
+	if(DAMF.state != IRQ)
+	{
+		// Bloqueo de tarea actual
+		DAMF.OS_Tasks[DAMF.running_task].state = BLOCKED;
+		// Creacion de evento a validar posteriormente
+		os_delay_event(time_delay,DAMF.running_task);
+		__WFI();
+	}
+	/*En caso de que nos encontremos en una interrupcion, NO hay posibiliidad de realizar un delay*/
 }
 
 /**************SEMAPHORE*******************/
@@ -665,12 +706,6 @@ bool sema_handler( void* prmtr )
 	}
 
 	DAMF.scheduler_flag = TRUE;
-
-	/*
-	DAMF.OS_Events[DAMF.events_index+PREV].prmtr = DAMF.OS_Events[DAMF.events_index].prmtr;
-	DAMF.OS_Events[DAMF.events_index+PREV].event_handler = DAMF.OS_Events[DAMF.events_index].event_handler;
-	DAMF.events_index--;
-	*/
 
 	return TRUE;
 }
@@ -712,17 +747,22 @@ void os_Sema_Take(semaphore_event_t * pointer)
 {
 	semaphore_event_t* sema = pointer;
 
-	if(sema->Sema_counter < sema->Total_counter)
+	if(DAMF.state!=IRQ)
 	{
-		sema->Sema_counter++;
+		if(sema->Sema_counter < sema->Total_counter)
+		{
+			sema->Sema_counter++;
+		}
+		else
+		{
+			sema->origin_task = DAMF.running_task;
+			//Si se ha alcanzado el max numero de Takes, genero un evento Semaphore
+			os_semaphore_event(sema);
+			__WFI();
+		}
 	}
-	else
-	{
-		sema->origin_task = DAMF.running_task;
-		//Si se ha alcanzado el max numero de Takes, genero un evento Semaphore
-		os_semaphore_event(pointer);
-		__WFI();
-	}
+	/*En caso de que nos encontremos en una interrupcion NO puedo detener la ejecucion por
+	 * esperar un semaforo */
 }
 
 //
@@ -734,14 +774,17 @@ void os_Sema_Free(semaphore_event_t * pointer)
 	{
 		sema->Sema_counter--;
 		/*Si libero un semaforo, puede que se desbloquee alguna tarea, por lo
-		que se genera un evento Semaphore*/
+			que se genera un evento Semaphore*/
 		os_semaphore_event(sema);
-		__WFI();
+		if(DAMF.state!=IRQ)
+		{
+			__WFI();
+		}
 	}
+
 }
 
 /*==================[OS_INTERNAL_APIS]=================================*/
-
 /*
  * Esta seccion contiene las funciones internas que mantienen el sistema operativo.
  */
@@ -772,8 +815,6 @@ void os_InitTarea(void *tarea, uint32_t *stack_tarea, uint32_t *stack_pointer)  
 	*stack_pointer = (uint32_t) (stack_tarea + STACK_SIZE/4 - FULL_STACKING_SIZE);
 }
 
-//
-
 // Inclusion de tarea Idle
 void os_Include_Idle_Task() {
 
@@ -792,20 +833,27 @@ void os_Include_Idle_Task() {
 	}
 }
 
-//
-
 // Organizacion de tareas por prioridad
 void sched_fix(uint8_t* order_tasks)
 {
-	int8_t  tasks_prio [MAX_TASKS];
-	uint8_t tasks_fix [MAX_TASKS];
+	int8_t  tasks_prio [DAMF.task_counter];
+	uint8_t tasks_fix [DAMF.task_counter];
 	uint8_t max = 0;
 	uint8_t max_index = 0;
 	uint8_t actual_index = DAMF.task_counter;
 	uint8_t counter = 0;
 
+	for(uint8_t i=0 ;i<=MAX_PRIO ;i++)
+	{
+		DAMF.OS_Task_Arrange[i].n_task_counter = 0;
+		for(uint8_t k = 0;k<MAX_TASKS;k++)
+		{
+			DAMF.OS_Task_Arrange[i].OS_Tasks_Prio[k] = TASK_ROUND_ROB;
+		}
+	}
+
 	//create a vector of the tasks priorities
-	for(uint8_t i=0;i<MAX_TASKS;i++)
+	for(uint8_t i=0;i<DAMF.task_counter;i++)
 	{
 		if(i<actual_index)
 		{
@@ -820,35 +868,6 @@ void sched_fix(uint8_t* order_tasks)
 			DAMF.OS_Task_Arrange[tasks_prio[i]].OS_Tasks_Prio[DAMF.OS_Task_Arrange[tasks_prio[i]].n_task_counter]=i;
 			DAMF.OS_Task_Arrange[tasks_prio[i]].n_task_counter++;
 		}
-/*
-		switch(tasks_prio[i])
-		{
-			case 0:
-				DAMF.OS_Task_Arrange[0].OS_Tasks_Prio[DAMF.OS_Task_Arrange[0].task_counter]=i;
-				//DAMF.OS_Tasks_Prio[0][counter0]=i;
-				DAMF.OS_Task_Arrange[0].task_counter++;
-				//counter0++;
-				break;
-
-			case 1:
-				DAMF.OS_Task_Arrange[1].OS_Tasks_Prio[DAMF.OS_Task_Arrange[1].task_counter]=i;
-				DAMF.OS_Task_Arrange[1].task_counter++;
-				break;
-
-			case 2:
-				DAMF.OS_Task_Arrange[2].OS_Tasks_Prio[DAMF.OS_Task_Arrange[2].task_counter]=i;
-				DAMF.OS_Task_Arrange[2].task_counter++;
-				break;
-
-			case 3:
-				DAMF.OS_Task_Arrange[3].OS_Tasks_Prio[DAMF.OS_Task_Arrange[3].task_counter]=i;
-				DAMF.OS_Task_Arrange[3].task_counter++;
-				break;
-
-			default:
-				break;
-		}
-*/
 	}
 
 
@@ -872,8 +891,6 @@ void sched_fix(uint8_t* order_tasks)
 	}
 	memcpy(order_tasks,tasks_fix,sizeof(tasks_fix));
 }
-
-//
 
 // Funcion de lanzamiento de eventos
 void event_dispatcher()
@@ -915,17 +932,6 @@ static bool scheduler()  {
 		{
 			aux = TRUE;
 		}
-	}
-	/*
-	else if(DAMF.state == CHECKING)
-	{
-		os_fsm_Checking();
-	}
-	*/
-	else if(DAMF.state == ERROR_H)
-	{
-		os_fsm_Error();
-		aux = TRUE;
 	}
 	else
 	{

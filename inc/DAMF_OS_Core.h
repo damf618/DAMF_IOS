@@ -133,6 +133,7 @@ typedef enum{
 typedef enum{
     INIT = 1,
     WORKING = 0,
+	IRQ = 4,
     CHECKING = 2,
 	ERROR_H = 3
 } OS_STATE;
@@ -193,7 +194,7 @@ struct DAMF_OS {
 	uint8_t running_task;
 	uint8_t next_task;
 	uint8_t tasks_log[MAX_LOG];
-	uint8_t OS_Prior[MAX_NUMBER_TASKS];
+	uint8_t OS_Prior[MAX_TASKS];
 	struct Tasks OS_Tasks[MAX_NUMBER_TASKS];
 	uint8_t task_counter;
 	char error_tag[MAX_TAG_LENGTH];
@@ -204,13 +205,14 @@ struct DAMF_OS {
 	struct Events OS_Events[MAX_N_EVENTS];
 	bool scheduler_flag;
 	uint8_t critical_counter;
-	//uint8_t OS_Tasks_Prio[CANT_PRIO][MAX_TASKS];
 	priority_t OS_Task_Arrange[CANT_PRIO];
 };
 
 /*==================[definicion de prototipos]=================================*/
 
 void os_Include_Task(void *tarea, const char * tag, const uint8_t Priority);
+
+void os_Running_Include_Task(void *tarea, const char * tag, const uint8_t Priority);
 
 void os_Init(void);
 
