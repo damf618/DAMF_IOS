@@ -46,6 +46,19 @@ extern "C" {
 #endif
 
 /*==================[macros]=================================================*/
+#define	LEDBLUE		0
+//#define	LEDGREEN	1
+#define	LEDRED		2
+#define	LEDYELLOW1	3
+#define	LEDRED2		4
+//#define	LEDGREEN	5
+
+#define	LEDBLUEG		40
+//#define	LEDGREENG		41
+#define	LEDREDG			42
+#define	LEDYELLOW1G		43
+#define	LEDRED2G		44
+//#define	LEDGREENG		45
 
 /*==================[typedef]================================================*/
 

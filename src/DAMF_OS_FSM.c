@@ -39,7 +39,6 @@ bool os_fsm_Running(void)
 	{
 		if(DAMF.OS_Tasks[DAMF.OS_Prior[index]].state == READY)
 		{
-			//next_ready = DAMF.OS_Prior[index];
 			next_ready_prior = DAMF.OS_Tasks[DAMF.OS_Prior[index]].prior;
 			any_ready = TRUE;
 			break;
@@ -55,14 +54,10 @@ bool os_fsm_Running(void)
 		if( (DAMF.OS_Tasks[DAMF.running_task].state==BLOCKED)||(next_ready_prior >= DAMF.OS_Tasks[DAMF.running_task].prior))
 		{
 
-			//ajustedescheduler
-			//memcpy(possible_tasks,DAMF.OS_Tasks_Prio[next_ready_prior],sizeof(possible_tasks));
-			//DAMF.OS_Task_Arrange[tasks_prio[i]].OS_Tasks_Prio[DAMF.OS_Task_Arrange[tasks_prio[i]].n_task_counter]
 			memcpy(possible_tasks,DAMF.OS_Task_Arrange[next_ready_prior].OS_Tasks_Prio,sizeof(possible_tasks));
 
 			while(!Round_Robin_Reset)
 			{
-				//for(uint8_t k = 0;k<DAMF.task_counter;k++)
 				for(uint8_t k = 0;k<DAMF.OS_Task_Arrange[next_ready_prior].n_task_counter;k++)
 				{
 					if((DAMF.OS_Tasks[possible_tasks[k]].state==READY)
@@ -80,7 +75,6 @@ bool os_fsm_Running(void)
 				}
 				if(!Round_Robin_Reset)
 				{
-					//for(uint8_t k = 0;k<DAMF.task_counter;k++)
 					for(uint8_t k = 0;k<DAMF.OS_Task_Arrange[next_ready_prior].n_task_counter;k++)
 					{
 						DAMF.OS_Tasks[possible_tasks[k]].round_robin = CLEAN;

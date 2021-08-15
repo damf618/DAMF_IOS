@@ -14,6 +14,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "DAMF_OS_IRQ.h"
+#include "GPIOInt_Setup.h"
 
 /************************************************************************************
  * 			Definiciones de Tipo de Variables
@@ -73,7 +74,7 @@
 #define FULL_STACKING_SIZE 			17	                         //16 core registers + valor previo de LR
 
 #define FALSE   			        0
-#define TRUE		   		        1
+//#define TRUE		   		        1
 
 #define CLEAN                       0
 #define PREV                       -1
@@ -93,7 +94,7 @@
 #define HEARTBEAT_TIMING	        50
 #define INIT_TASK 			        0
 #define MAX_LOG  			        100	                         //Maximo numero de cambios de conextos registrables
-#define MAX_TAG_LENGTH		        50	                         //Maximo numero de caracteres del tag de la tarea
+#define MAX_TAG_LENGTH		        80	                         //Maximo numero de caracteres del tag de la tarea
 #define MAX_TASKS  			        8	                         //Maximo numero de tareas implementadas
 #define MAX_NUMBER_TASKS			MAX_TASKS+1
 #define IDLE_TASK_INDEX				8
@@ -102,12 +103,13 @@
 #define RESET_TASK   		        0
 #define TASK_ROUND_ROB				55
 
-#define IDLE_TASK_TAG	            "DAMF_OS IDLE TASK "
-#define DEFAULT_TAG		            "TASK #"                     //En caso de que no se defina un tag a la tarea
-#define ERROR_STACK		            "STACK MEMORY UNDETERMINED"  //Si no es posible adquirir la memoria disponible
-#define FREE_STACK_MSG	            "THE MEMORY AVAILABLE IS: "
+#define IDLE_TASK_TAG				"DAMF_OS IDLE TASK"
 #define MAX_TASK_MSG	            "MAX NUMBER OF TASKS REACHED"
-
+#define TASK_RETURN_MSG				"TASK HAS RETURNED"
+#define IDLE_TASK_RETURN_MSG		"IDLE TASK HAS RETURNED"
+#define NO_INIT_MSG					"OS_INIT MUST BE CALLED BEFORE"
+#define NO_QUEUE_MSG				"NO QUEUE POINTER WAS FIND"
+#define NO_SEMA_MSG					"NO SEMA POINTER WAS FIND"
 
 
 /*==================[definicion de datos externa]=================================*/
@@ -130,8 +132,9 @@ typedef enum{
     SUSPENDED = 3
 } TASK_STATE;
 
+//VALIDFAR CAMBIO INIT
 typedef enum{
-    INIT = 1,
+    INIT = 63,
     WORKING = 0,
 	IRQ = 4,
     CHECKING = 2,
