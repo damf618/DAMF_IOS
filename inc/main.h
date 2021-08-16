@@ -34,9 +34,6 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
-/** \addtogroup blink Bare-metal blink example
- ** @{ */
-
 /*==================[inclusions]=============================================*/
 
 /*==================[cplusplus]==============================================*/
@@ -46,19 +43,6 @@ extern "C" {
 #endif
 
 /*==================[macros]=================================================*/
-#define	LEDBLUE		0
-//#define	LEDGREEN	1
-#define	LEDRED		2
-#define	LEDYELLOW1	3
-#define	LEDRED2		4
-//#define	LEDGREEN	5
-
-#define	LEDBLUEG		40
-//#define	LEDGREENG		41
-#define	LEDREDG			42
-#define	LEDYELLOW1G		43
-#define	LEDRED2G		44
-//#define	LEDGREENG		45
 
 /*==================[typedef]================================================*/
 
@@ -77,6 +61,5 @@ int main(void);
 }
 #endif
 
-/** @} doxygen end group definition */
 /*==================[end of file]============================================*/
 #endif /* #ifndef _MAIN_H_ */
