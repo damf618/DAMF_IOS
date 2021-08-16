@@ -879,8 +879,9 @@ void sched_fix(uint8_t* order_tasks)
 {
 	int8_t  tasks_prio [DAMF.task_counter];
 	uint8_t tasks_fix [DAMF.task_counter];
-	uint8_t max = 0;
-	uint8_t max_index = 0;
+	//uint8_t max = 0;
+	uint8_t min = 55;
+	uint8_t index = 0;
 	uint8_t actual_index = DAMF.task_counter;
 	uint8_t counter = 0;
 
@@ -917,17 +918,27 @@ void sched_fix(uint8_t* order_tasks)
 		//Search for the index of the greater priority value
 		for(uint8_t i=0;i<actual_index;i++)
 		{
+			/****MAX****/
+			/* //Ordenar de mayor a menor para prioridades de 3 a 0.
 			if(max<=tasks_prio[i])
 			{
 				max = tasks_prio[i];
-				max_index = i;
+				index = i;
+			}
+			*/
+			/*****MIN***/
+			//Ordenar de menor a mayor para prioridades de 0 a 3.
+			if(min>=tasks_prio[i])
+			{
+				min = tasks_prio[i];
+				index = i;
 			}
 		}
 		//Reset the search and delete the actual max value
-		max= EVAL_PRIO;
-		tasks_prio[max_index] = NO_PRIO;
+		min= EVAL_PRIO+55;
+		tasks_prio[index] = NO_PRIO+56;
 		//save the actual max index
-		tasks_fix[counter] = max_index;
+		tasks_fix[counter] = index;
 		counter++;
 	}
 	memcpy(order_tasks,tasks_fix,sizeof(tasks_fix));
