@@ -35,6 +35,8 @@ void woow(void* prmtr)
 
 	uint32_t* times = (uint32_t*) prmtr;
 
+	os_Sema_Free(&Sema1);
+
 	for(uint32_t i = 0;i<times[0];i++)
 	{
 		Board_LED_Toggle(0);
@@ -96,7 +98,7 @@ void tarea1(void)  {
 			os_delay(250);//DELAY ms
 		#endif
 		Board_LED_Toggle(4);
-		os_Sema_Free(&Sema1);
+		//os_Sema_Free(&Sema1);
 		if(dato_pull==55355)
 		{
 			for(uint8_t i = 0; i<=10 ;i++)
@@ -115,7 +117,7 @@ void tarea1(void)  {
 				#endif
 			}
 		}
-		os_Sema_Free(&Sema1);
+		//os_Sema_Free(&Sema1);
 		#ifdef DEBUG_CIA
 			os_delay(2);//DELAY ms
 		#else
