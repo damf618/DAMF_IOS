@@ -133,6 +133,7 @@ void tarea2(void)  {
 	uint16_t j = 0;
 	uint16_t k = 0;
 
+
 	while (1)
 	{
 		j++;
