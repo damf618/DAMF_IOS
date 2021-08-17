@@ -443,7 +443,7 @@ void os_Run(void)
 /***************CRITICAL********************/
 
 //
-static inline void os_enter_critical()  {
+inline void os_enter_critical()  {
 	__disable_irq();
 	DAMF.critical_counter++;
 }
@@ -460,7 +460,7 @@ static inline void os_enter_critical()  {
 	 *  @return     None
 	 *  @see 		os_enter_critical
 ************************************************************************************************* **/
-static inline void os_exit_critical()  {
+inline void os_exit_critical()  {
 	if (--DAMF.critical_counter <= 0)  {
 		DAMF.critical_counter = 0;
 		__enable_irq();
@@ -786,6 +786,7 @@ void os_Sema_Take(semaphore_event_t * pointer)
 				//Si se ha alcanzado el max numero de Takes, genero un evento Semaphore
 				os_semaphore_event(sema);
 				__WFI();
+				sema->Sema_counter++;
 			}
 		}
 		/*En caso de que nos encontremos en una interrupcion NO puedo detener la ejecucion por

@@ -11,15 +11,46 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "../inc/time_tracker.h"
+
+/*==================[external functions]=========================*/
+char* itoa(int value, char* result, int base) {
+   // check that the base if valid
+   if (base < 2 || base > 36) { *result = '\0'; return result; }
+
+   char* ptr = result, *ptr1 = result, tmp_char;
+   int tmp_value;
+
+   do {
+      tmp_value = value;
+      value /= base;
+      *ptr++ = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz" [35 + (tmp_value - value * base)];
+   } while ( value );
+
+   // Apply negative sign
+   if (tmp_value < 0) *ptr++ = '-';
+   *ptr-- = '\0';
+   while(ptr1 < ptr) {
+      tmp_char = *ptr;
+      *ptr--= *ptr1;
+      *ptr1++ = tmp_char;
+   }
+   return result;
+}
 
 /*==================[functions declaration]=========================*/
 
 bool_t timing_event_generator (monitor_system_t* monitor);
+void Event_Msg (monitor_system_t* monitor);
 
 /*==================[functions]=========================*/
 void Monitor_System_Init(monitor_system_t* monitor,uint8_t key1, uint8_t key2)
 {
+	/* Inicializar UART_USB a 115200 baudios */
+	uartConfig( UART_USB, 115200 );
+
 	cyclesCounterConfig ( EDU_CIAA_NXP_CLOCK_SPEED );
 	monitor->button1.key = key1;
 	monitor->button2.key = key2;
@@ -171,7 +202,7 @@ bool_t timing_event_generator (monitor_system_t* monitor)
 			//Si se solto primero el Boton 1
 			if(monitor->button_sequence[SECOND_SEQUENCE] == monitor->button1.key)
 			{
-				monitor->events[monitor->event_counter].led = LED_RGB_BLUE;
+				monitor->events[monitor->event_counter].led = LED_GREEN;
 			}
 			else
 			{
@@ -188,7 +219,7 @@ bool_t timing_event_generator (monitor_system_t* monitor)
 			}
 			else
 			{
-				monitor->events[monitor->event_counter].led = LED_GREEN;
+				monitor->events[monitor->event_counter].led = LED_RGB_BLUE;
 			}
 		}
 		rtn = TRUE;
@@ -248,6 +279,73 @@ void reset_event(monitor_system_t* monitor)
 	monitor->state = T1_INIT;
 }
 
+void Event_Msg(monitor_system_t* monitor)
+{
+	char msg1 [50];
+	char msg2 [50];
+	char msg3 [50];
+	char msg4 [50];
+	char itoa_msg[10];
+
+	memset(msg1,0,50);
+	memset(msg2,0,50);
+	memset(msg3,0,50);
+	memset(msg4,0,50);
+
+	uint32_t time1_millis = monitor->events[monitor->event_counter-1].t1_timing;
+	uint32_t time2_millis = monitor->events[monitor->event_counter-1].t2_timing;
+	uint32_t total_time_milllis = time1_millis + time2_millis;
+
+	if(LED_RGB_BLUE==monitor->events[monitor->event_counter-1].led)
+	{
+		strcpy(msg1,BLUE_LED_MSG);
+	}
+	else if(LED_RED==monitor->events[monitor->event_counter-1].led)
+	{
+		strcpy(msg1,RED_LED_MSG);
+	}
+	else if(LED_YELLOW==monitor->events[monitor->event_counter-1].led)
+	{
+		strcpy(msg1,YELLOW_LED_MSG);
+	}
+	else if(LED_GREEN==monitor->events[monitor->event_counter-1].led)
+	{
+		strcpy(msg1,GREEN_LED_MSG);
+	}
+
+	strcpy(msg2,ON_TIME_MSG);
+	itoa( total_time_milllis, itoa_msg, 10 ); /* base 10 significa decimal */
+	strcat(msg2,itoa_msg);
+	strcat(msg2,UNI_MSG);
+
+	memset(itoa_msg,0,10);
+
+	strcpy(msg3,FALLING_MSG);
+	itoa( time1_millis, itoa_msg, 10 ); /* base 10 significa decimal */
+	strcat(msg3,itoa_msg);
+	strcat(msg3,UNI_MSG);
+
+	memset(itoa_msg,0,10);
+
+	strcpy(msg4,RISING_MSG);
+	itoa( time2_millis, itoa_msg, 10 ); /* base 10 significa decimal */
+	strcat(msg4,itoa_msg);
+	strcat(msg4,UNI_MSG);
+
+	uartWriteString( UART_USB, msg1 );
+	uartWriteString( UART_USB, msg2 );
+	uartWriteString( UART_USB, msg3 );
+	uartWriteString( UART_USB, msg4 );
+}
+
+void Goodbye_Msg()
+{
+	char goodbye[50];
+
+	strcpy(goodbye,GOOGBYE_MSG);
+	uartWriteString( UART_USB, goodbye);
+}
+
 bool_t	timing_action(monitor_system_t* monitor)
 {
 	bool_t rtn = FALSE;
@@ -257,6 +355,7 @@ bool_t	timing_action(monitor_system_t* monitor)
 
 	if(!monitor->events[monitor->event_counter-1].active_event)
 	{
+		Event_Msg(monitor);
 		monitor->events[monitor->event_counter-1].active_event = TRUE;
 		cyclesCounterReset();
 		Board_LED_Toggle(monitor->events[monitor->event_counter-1].led);
@@ -266,6 +365,7 @@ bool_t	timing_action(monitor_system_t* monitor)
 		//Si ya se cumplio el tiempo de encendido del LED
 		if(led_timing>=total_led_timing)
 		{
+			Goodbye_Msg();
 			Board_LED_Toggle(monitor->events[monitor->event_counter-1].led);
 			rtn = TRUE;
 		}

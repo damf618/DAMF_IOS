@@ -240,5 +240,8 @@ void os_push_queue(queue_event_t * queue_p, void* data);
 
 void os_pull_queue(queue_event_t * queue_p, void* vari);
 
+void os_enter_critical(void);
+
+void os_exit_critical(void);
 
 #endif /* ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_ */

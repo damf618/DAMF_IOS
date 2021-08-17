@@ -68,31 +68,6 @@ void B2_Interrupt(void* prmtr)
 	}
 }
 
-void woaow(void)
-{
-	while(1)
-	{
-		Board_LED_Toggle(0);
-		#ifdef DEBUG_CIA
-			os_delay(2);//DELAY ms
-		#else
-			os_delay(200);//DELAY ms
-		#endif
-		Board_LED_Toggle(1);
-		#ifdef DEBUG_CIA
-			os_delay(2);//DELAY ms
-		#else
-			os_delay(200);//DELAY ms
-		#endif
-		Board_LED_Toggle(2);
-		#ifdef DEBUG_CIA
-			os_delay(2);//DELAY ms
-		#else
-			os_delay(800);//DELAY ms
-		#endif
-	}
-}
-
 void Event_Dispatcher(void)
 {
 	bool_t finished_event = FALSE;
@@ -100,12 +75,14 @@ void Event_Dispatcher(void)
 	while (1)
 	{
 		os_Sema_Take(&Event_Sema);
+		os_enter_critical();
 		while(!finished_event)
 		{
 			finished_event = timing_action(&monitor);
 		}
 		clear_event(&monitor);
 		finished_event = FALSE;
+		os_exit_critical();
 	}
 }
 
@@ -122,9 +99,8 @@ void Monitor_FSM(void)
 		if(event_state)
 		{
 			timing_event_generator(&monitor);
-			//os_push_queue(&Event_Queue,&monitor.events[monitor.event_counter-1]);
-			os_Sema_Free(&Event_Sema);
 			event_state=FALSE;
+			os_Sema_Free(&Event_Sema);
 		}
 	}
 
@@ -138,13 +114,12 @@ int main(void)  {
 
 	os_Semaphore_Create(&Event_Sema, 1);
 
-	//os_Queue_Create(&Event_Queue,10,sizeof(uint32_t));
 	os_Queue_Create(&Button_Queue,10,sizeof(uint32_t));
 
 	os_Init();
 
-	os_Include_Task(&Event_Dispatcher	,"Despachador de Eventos",0);
-	os_Include_Task(&Monitor_FSM 		,"Monitor FSM",1);
+	os_Include_Task(&Event_Dispatcher	,"Despachador de Eventos",1);
+	os_Include_Task(&Monitor_FSM 		,"Monitor FSM",0);
 
 	os_SetIRQ(PIN_INT0_IRQn,&B1_Interrupt,&monitor);
 	os_SetIRQ(PIN_INT2_IRQn,&B2_Interrupt,&monitor);

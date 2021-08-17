@@ -9,9 +9,9 @@
 /*==================[macros]=================================================*/
 #define INIT_TIME		0
 
-#define LED_RGB_BLUE	0
+#define LED_RGB_BLUE	2
 #define LED_RGB_GREEN	1
-#define LED_RGB_RED		2
+#define LED_RGB_RED		0
 #define LED_YELLOW		3
 #define LED_RED			4
 #define LED_GREEN		5
@@ -33,11 +33,14 @@
 #define	BLUE_LED_MSG	"Led Azul encendido:\n\r"
 
 #define	ON_TIME_MSG		"\t Tiempo encendido: "
+#define	UNI_MSG			" ms \n\r"
 
 #define	FALLING_MSG		"\t Tiempo entre flancos descendentes: "
 #define	RISING_MSG		"\t Tiempo entre flancos ascendentes: "
 
 #define TERMINAL_MSG	"\n\r"
+
+#define GOOGBYE_MSG		"\n\r  *--*  GAME OVER  *--* \n\r"
 
 #define INIT_SEQUENCE	0
 #define	FIRST_SEQUENCE	1
