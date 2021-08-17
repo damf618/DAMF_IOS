@@ -8,6 +8,8 @@
 #ifndef ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_
 #define ISO_I_2020_MSE_OS_INC_DAMF_OS_CORE_H_
 
+#define EDUCIAA		//Implementar Heartbeat en IDLE_TASK
+
 #include "stdbool.h"
 #include <stdint.h>
 #include "board.h"
@@ -26,7 +28,7 @@
  * 			Tamaño del stack predefinido para cada tarea expresado en bytes
  ***********************************************************************************/
 
-#define STACK_SIZE 256
+#define STACK_SIZE 512
 
 //----------------------------------------------------------------------------------
 
@@ -74,7 +76,6 @@
 #define FULL_STACKING_SIZE 			17	                         //16 core registers + valor previo de LR
 
 #define FALSE   			        0
-//#define TRUE		   		        1
 
 #define CLEAN                       0
 #define PREV                       -1

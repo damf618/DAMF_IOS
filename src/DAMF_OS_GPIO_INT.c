@@ -11,7 +11,7 @@
 
 void GPIO_Interrupt_Setup(void)
 {
-/****************TEC1*************************/
+	/****************TEC1*************************/
 	/*GPIO TEC1 INTERRUPT SETUP*/
 	// Configure interrupt channel for the GPIO pin
 	Chip_SCU_GPIOIntPinSel( PININT_INDEX1, GPIO0_GPIO_PORT1, GPIO0_GPIO_PIN1);
@@ -24,8 +24,23 @@ void GPIO_Interrupt_Setup(void)
 
 	// Enable interrupt in the NVIC
 	NVIC_ClearPendingIRQ( TEC1_INT);
-	NVIC_SetPriority(TEC1_INT, 5);
+	NVIC_SetPriority(TEC1_INT, GPIO_INTERRUPT_PRIORITY);
 	NVIC_EnableIRQ( TEC1_INT);
+
+	/****************TEC2************************/
+	// Configure interrupt channel for the GPIO pin
+	Chip_SCU_GPIOIntPinSel( PININT_INDEX2, GPIO0_GPIO_PORT2, GPIO0_GPIO_PIN2);
+
+	// Configure channel interrupt as edge sensitive and falling edge interrupt
+	Chip_PININT_ClearIntStatus(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX2));
+	Chip_PININT_SetPinModeEdge(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX2));
+	Chip_PININT_EnableIntLow(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX2));
+	Chip_PININT_EnableIntHigh(LPC_GPIO_PIN_INT, PININTCH(PININT_INDEX2));
+
+	// Enable interrupt in the NVIC
+	NVIC_ClearPendingIRQ( TEC2_INT);
+	NVIC_SetPriority(TEC2_INT, GPIO_INTERRUPT_PRIORITY);
+	NVIC_EnableIRQ( TEC2_INT);
 }
 
 

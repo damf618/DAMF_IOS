@@ -14,9 +14,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
-
-//#define EDUCIAA		//Implementar Heartbeat en IDLE_TASK
-
 #include "DAMF_OS_FSM.h"
 
 struct DAMF_OS DAMF;
@@ -253,8 +250,8 @@ void __attribute__((weak)) Idle_Task(void)  {
 		}
 		//NO esta bloqueando y se va al retorno
 		__WFI();
-		os_set_Error(TASK_RETURN_MSG);
 	}
+	os_set_Error(TASK_RETURN_MSG);
 #else
 	while(1)
 	{
